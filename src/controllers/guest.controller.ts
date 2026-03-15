@@ -60,7 +60,6 @@ export const createGuest = async (req: Request, res: Response) => {
     password,
     role: "guest",
     isVerified: true,
-    needsPasswordReset: true,
   });
 
   return res.status(201).json({
