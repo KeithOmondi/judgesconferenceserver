@@ -5,7 +5,7 @@ import { AuthRequest } from "../middlewares/authMiddleware";
 export const getProfile = async (req: AuthRequest, res: Response) => {
   const user = await User.findById(req.user!.id).select("-password");
   if (!user) {
-    return res.status(404).json({ success: false, message: "User not found" });
+    return res.status(404).json({ success: false, message: "Officer not found" });
   }
   return res.status(200).json({ success: true, user });
 };
@@ -13,7 +13,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   const updates = {
     name: req.body.name,
-    email: req.body.email,
+    pj: req.body.pj, // Swapped from email
   };
 
   const user = await User.findByIdAndUpdate(req.user!.id, updates, {
@@ -25,13 +25,12 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 };
 
 /* =====================================
-   🧾 ADMIN — GET ALL USERS
+    🧾 ADMIN — GET ALL USERS
 ===================================== */
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
 
-    // Explicitly return an empty array if no users exist to avoid frontend 'map' errors
     return res.status(200).json({
       success: true,
       count: users.length,
@@ -45,7 +44,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   🔎 ADMIN — GET USER BY ID
+    🔎 ADMIN — GET USER BY ID
 ===================================== */
 export const getUserById = async (req: Request, res: Response) => {
   const user = await User.findById(req.params.id).select("-password");
@@ -55,17 +54,17 @@ export const getUserById = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   ➕ ADMIN — CREATE NEW USER
+    ➕ ADMIN — CREATE NEW USER
 ===================================== */
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, pj, role } = req.body;
 
     // Basic validation
-    if (!name || !email || !password) {
+    if (!name || !pj) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and password required",
+        message: "Name and PJ Number required",
       });
     }
 
@@ -76,28 +75,29 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
+    // Check if PJ Number exists
+    const existingUser = await User.findOne({ pj });
     if (existingUser) {
       return res
         .status(400)
-        .json({ success: false, message: "Email already in use" });
+        .json({ success: false, message: "PJ Number already in use" });
     }
 
-    // ✅ Let the schema hook handle password hashing
     const newUser = await User.create({
       name,
-      email: email.toLowerCase().trim(),
-      password, // plain password, hashed automatically
+      pj: pj.trim(),
       role,
       isActive: true,
       loginAttempts: 0,
-      needsPasswordReset: false,
     });
+
+    // ✅ Safe way to remove password without using 'delete'
+    // This destructures 'password' out and collects everything else into 'userObject'
+    const { password, ...userObject } = newUser.toObject();
 
     return res.status(201).json({
       success: true,
-      user: { ...newUser.toObject(), password: undefined },
+      user: userObject,
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -108,13 +108,13 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 };
 
 /* =====================================
-   🛠 ADMIN — UPDATE USER (ROLE / STATUS)
+    🛠 ADMIN — UPDATE USER
 ===================================== */
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const allowedUpdates: any = {};
     if (req.body.name) allowedUpdates.name = req.body.name;
-    if (req.body.email) allowedUpdates.email = req.body.email;
+    if (req.body.pj) allowedUpdates.pj = req.body.pj; // Swapped from email
     if (req.body.role && ["admin", "judge", "guest"].includes(req.body.role))
       allowedUpdates.role = req.body.role;
     if (req.body.isActive !== undefined)
@@ -140,7 +140,7 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   ❌ ADMIN — DELETE USER
+    ❌ ADMIN — DELETE USER
 ===================================== */
 export const deleteUser = async (req: Request, res: Response) => {
   const user = await User.findByIdAndDelete(req.params.id);
@@ -152,7 +152,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   🔔 SUBSCRIBE TO WEB PUSH
+    🔔 SUBSCRIBE TO WEB PUSH
 ===================================== */
 export const subscribeToPush = async (req: AuthRequest, res: Response) => {
   try {
