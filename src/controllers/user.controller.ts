@@ -222,3 +222,76 @@ export const subscribeToPush = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+/* =====================================
+    ✏️ ADMIN — EDIT USER (Dedicated)
+===================================== */
+export const editUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, email, pj, cohort } = req.body;
+
+    // 1. Verify user exists
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Personnel record not found",
+      });
+    }
+
+    const updates: any = {};
+
+    // 2. Handle Name Update
+    if (name) updates.name = name.trim();
+
+    // 3. Handle Email Update with Duplicate Check
+    if (email && email.toLowerCase() !== user.email?.toLowerCase()) {
+      const emailExists = await User.findOne({ 
+        email: email.toLowerCase().trim() 
+      });
+      if (emailExists) {
+        return res.status(400).json({
+          success: false,
+          message: "This email is already registered to another officer",
+        });
+      }
+      updates.email = email.toLowerCase().trim();
+    }
+
+    // 4. Handle PJ Number Update with Duplicate Check
+    if (pj && pj !== user.pj) {
+      const pjExists = await User.findOne({ pj: pj.trim() });
+      if (pjExists) {
+        return res.status(400).json({
+          success: false,
+          message: "PJ Number conflict: Already assigned in registry",
+        });
+      }
+      updates.pj = pj.trim();
+    }
+
+    // 5. Handle Cohort (allowing for null/empty to clear it)
+    if (cohort !== undefined) {
+      updates.cohort = cohort === "" ? null : Number(cohort);
+    }
+
+    // 6. Execute Update
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    return res.status(200).json({
+      success: true,
+      message: "Officer details updated successfully",
+      user: updatedUser,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Registry modification failed",
+    });
+  }
+};

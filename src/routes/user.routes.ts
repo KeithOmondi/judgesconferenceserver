@@ -7,7 +7,8 @@ import {
   updateUser,
   deleteUser,
   subscribeToPush,
-  createUser,       // new
+  createUser,
+  editUser,       // new
 } from "../controllers/user.controller";
 import { authorize, protect } from "../middlewares/authMiddleware";
 
@@ -47,5 +48,8 @@ router.delete("/:id", protect, authorize("admin"), deleteUser);
 ===================================== */
 
 router.post("/subscribe", protect, subscribeToPush);
+
+//EDIT USER DETAILS
+router.patch("/edit/:id", protect, authorize("admin"), editUser);
 
 export default router;
