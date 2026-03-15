@@ -16,18 +16,25 @@ interface IWebPushSubscription {
 }
 
 export interface IUser extends Document {
-  pj: string; // Unique personal/job identifier
+  pj: string;
   name: string;
   email: string;
   password: string;
   role: UserRole;
+
+  cohort?: number; // 👈 NEW (2011, 2012, 2013 etc)
+
   isVerified: boolean;
   isActive: boolean;
+
   fcmTokens: string[];
   webPushSubscriptions: IWebPushSubscription[];
+
   passwordChangedAt?: Date;
+
   loginAttempts: number;
   lockUntil?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -51,13 +58,15 @@ const userSchema = new Schema<IUser>(
       trim: true,
       index: true,
     },
+
     name: {
       type: String,
       required: true,
       trim: true,
       minlength: 2,
-      maxlength: 50,
+      maxlength: 100,
     },
+
     email: {
       type: String,
       required: true,
@@ -66,20 +75,49 @@ const userSchema = new Schema<IUser>(
       trim: true,
       index: true,
     },
-    password: { 
-      type: String, 
-      required: true, 
-      minlength: 5, 
-      select: false 
+
+    password: {
+      type: String,
+      required: true,
+      minlength: 5,
+      select: false,
     },
-    role: { 
-      type: String, 
-      enum: ["admin", "judge", "guest"], 
-      default: "guest" 
+
+    role: {
+      type: String,
+      enum: ["admin", "judge", "guest"],
+      default: "guest",
+      index: true,
     },
-    isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
-    fcmTokens: { type: [String], default: [], index: true },
+
+    /* ================================
+       👨‍⚖️ Judge Cohort
+       Example: 2011, 2012, 2013
+    ================================= */
+    cohort: {
+      type: Number,
+      index: true,
+      min: 2000,
+      max: 2100,
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+
+    fcmTokens: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+
     webPushSubscriptions: [
       {
         endpoint: { type: String, required: true },
@@ -90,11 +128,19 @@ const userSchema = new Schema<IUser>(
         },
       },
     ],
+
     passwordChangedAt: Date,
-    loginAttempts: { type: Number, default: 0 },
+
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+
     lockUntil: Date,
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
 /* ================================
@@ -106,7 +152,6 @@ userSchema.pre<IUser>("save", async function () {
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
 
-  // Update passwordChangedAt if the password was modified (and not a new doc)
   if (!this.isNew) {
     this.passwordChangedAt = new Date(Date.now() - 1000);
   }
@@ -119,11 +164,13 @@ userSchema.methods.comparePassword = async function (
   candidatePassword: string,
 ): Promise<boolean> {
   const userPassword = (this as any).password;
+
   if (!userPassword) {
     throw new Error(
       "Password not selected. Use .select('+password') in query.",
     );
   }
+
   return bcrypt.compare(candidatePassword, userPassword);
 };
 
@@ -136,13 +183,16 @@ userSchema.methods.isLocked = function (): boolean {
 ================================ */
 userSchema.statics.failedLogin = async function (email: string) {
   const user = await this.findOne({ email });
+
   if (!user) return;
 
   user.loginAttempts += 1;
+
   if (user.loginAttempts >= 5) {
-    // Lock for 30 minutes
-    user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); 
+    // Lock account for 30 minutes
+    user.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
   }
+
   await user.save();
 };
 
