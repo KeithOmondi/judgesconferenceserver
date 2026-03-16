@@ -5,40 +5,49 @@ import { upload } from "../middlewares/upload";
 
 const router = Router();
 
+// Disable caching for real-time messaging data
 router.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   next();
 });
 
 /* ============================================================
-   GENERAL MESSAGE OPERATIONS (Judges & Admin)
+    GENERAL MESSAGE OPERATIONS (Judges & Admin)
 ============================================================ */
 
-// Send message (Judge -> Admin, Judge -> Group)
+/**
+ * Send Message: Only Admins can send. 
+ * Note: authorize("admin") added to match the controller logic.
+ */
 router.post(
   "/messages", 
   protect, 
-  authorize("admin", "judge"), // Restricted from guests
+  authorize("admin"), 
   upload.single("image"), 
   ChatCtrl.sendMessage
 );
 
 router.get("/messages", protect, ChatCtrl.getMessages);
 router.patch("/messages/:messageId", protect, ChatCtrl.editMessage);
-router.patch("/messages/:messageId/read", protect, ChatCtrl.markAsRead);
 router.delete("/messages/:messageId", protect, ChatCtrl.deleteMessage);
 
+/**
+ * Thread Management: Bulk Mark as Read
+ * Replaced individual message markAsRead with the Thread logic
+ */
+router.patch("/read-thread", protect, ChatCtrl.markThreadAsRead);
+
 /* ============================================================
-   GROUP & CHANNEL RESOLUTION
+    GROUP & CHANNEL RESOLUTION
 ============================================================ */
 
 router.get("/my-groups", protect, ChatCtrl.getUserGroups);
 
 /* ============================================================
-   ADMIN MANAGEMENT (Multi-Select & System Control)
+    ADMIN MANAGEMENT (System Control)
 ============================================================ */
 
-// Updated: Admin sends to multi-receivers, groups, or broadcast
+// Admin sends to multi-receivers, groups, or broadcast
 router.post(
   "/admin/send",
   protect,
@@ -53,47 +62,12 @@ router.patch("/groups/:groupId", protect, authorize("admin"), ChatCtrl.adminUpda
 router.post("/groups/:groupId/members", protect, authorize("admin"), ChatCtrl.adminAddMembers);
 router.delete("/groups/:groupId/members/:userId", protect, authorize("admin"), ChatCtrl.adminRemoveMember);
 
+// History & Audit Logs
 router.get("/admin/messages", protect, authorize("admin"), ChatCtrl.adminGetAllMessages);
 router.get("/admin/stats", protect, authorize("admin"), ChatCtrl.adminGetStats);
 router.delete("/admin/purge/:messageId", protect, authorize("admin"), ChatCtrl.adminPermanentDelete);
+
+// Thread-specific history for Admin Dashboard
 router.get("/chat/messages", protect, authorize("admin"), ChatCtrl.adminGetChatMessages);
-
-/* ============================================================
-   GUEST ROUTES (Read-Only Policy)
-============================================================ */
-
-// Fetch Guest-specific channels (Registry Admin & Broadcasts)
-router.get(
-  "/guest/channels",
-  protect,
-  authorize("guest"),
-  ChatCtrl.guestGetChannels // New Controller
-);
-
-// Get messages for the logged-in guest (Inbox only)
-router.get(
-  "/guest/messages",
-  protect,
-  authorize("guest"),
-  ChatCtrl.guestGetMessages
-);
-
-// Guests can still mark messages as read to clear notifications
-router.patch(
-  "/guest/read/:messageId",
-  protect,
-  authorize("guest"),
-  ChatCtrl.guestMarkAsRead
-);
-
-// Add this near your other GET routes
-router.get(
-  "/conversations/active", 
-  protect, 
-  authorize("admin"), 
-  ChatCtrl.getActiveConversations
-);
-
-// NOTE: router.post("/send") REMOVED to enforce Read-Only policy for guests
 
 export default router;

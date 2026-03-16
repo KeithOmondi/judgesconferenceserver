@@ -3,170 +3,243 @@ import Notice from "../models/noticeModel";
 import { AuthRequest } from "../middlewares/authMiddleware";
 import { uploadToCloudinary } from "../config/cloudinary";
 
-// Helper to handle error messages safely
-const getErrorMessage = (error: unknown) => 
+const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Internal Server Error";
 
-// ----------------- CREATE NOTICE (ADMIN) -----------------
+const generateSlug = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, "-")
+    .trim();
+
+// ----------------- 1. CREATE NOTICE -----------------
 export const createNotice = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!req.file) {
-      return res.status(400).json({ message: "File is required" });
+    const {
+      title,
+      description,
+      priority,
+      targetAudience,
+      eventDetails,
+      expiryDate,
+    } = req.body;
+
+    const attachments = [];
+
+    if (req.files && Array.isArray(req.files)) {
+      for (const file of req.files) {
+        const upload = await uploadToCloudinary(file, "notices");
+
+        attachments.push({
+          fileUrl: upload.secure_url,
+          fileName: upload.original_filename || file.originalname,
+          fileSize: file.size,
+        });
+      }
     }
 
-    const { title, description, type, isUrgent } = req.body;
-
-    // Upload file to Cloudinary
-    const upload = await uploadToCloudinary(req.file, "notices");
+    const parsedEvent =
+      typeof eventDetails === "string"
+        ? JSON.parse(eventDetails)
+        : eventDetails;
 
     const notice = await Notice.create({
       title,
       description,
-      fileUrl: upload.secure_url,
-      fileName: upload.original_filename || req.file.originalname,
-      fileSize: `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`,
-      type,
-      isUrgent: isUrgent === 'true' || isUrgent === true, // Handle stringified booleans from FormData
+      slug: generateSlug(title),
+      priority: priority || "NORMAL",
+      targetAudience: targetAudience || "ALL",
+      eventDetails: parsedEvent,
+      attachments,
+      expiryDate,
       createdBy: userId,
     });
 
     res.status(201).json(notice);
   } catch (error) {
-    res.status(500).json({ message: "Failed to create notice", error: getErrorMessage(error) });
+    res
+      .status(500)
+      .json({ message: "Failed to create notice", error: getErrorMessage(error) });
   }
 };
 
-// ----------------- GET ALL NOTICES (ADMIN/INTERNAL) -----------------
+// ----------------- 2. GET ALL NOTICES (ADMIN) -----------------
 export const getNotices = async (req: AuthRequest, res: Response) => {
   try {
-    const { type, search } = req.query;
-    let query: any = {};
+    const { priority, search } = req.query;
 
-    if (type && type !== "ALL") query.type = type;
-    if (search) query.title = { $regex: search, $options: "i" };
+    const query: any = {};
+
+    if (priority && priority !== "ALL") query.priority = priority;
+
+    if (search) {
+      query.$text = { $search: String(search) };
+    }
 
     const notices = await Notice.find(query)
-      .sort({ createdAt: -1 })
-      .populate("createdBy", "name email") // Optional: see who created it
+      .sort({ priority: -1, publishDate: -1 })
+      .populate("createdBy", "name")
       .lean();
 
     res.json(notices);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch notices", error: getErrorMessage(error) });
+    res
+      .status(500)
+      .json({ message: "Failed to fetch notices", error: getErrorMessage(error) });
   }
 };
 
-// ----------------- UPDATE NOTICE (ADMIN) -----------------
+// ----------------- 3. GET SINGLE NOTICE -----------------
+export const getNoticeById = async (req: AuthRequest, res: Response) => {
+  try {
+    const notice = await Notice.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { "stats.views": 1 } },
+      { new: true }
+    ).populate("createdBy", "name");
+
+    if (!notice) {
+      return res.status(404).json({ message: "Notice not found" });
+    }
+
+    res.json(notice);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching notice", error: getErrorMessage(error) });
+  }
+};
+
+// ----------------- 4. UPDATE NOTICE -----------------
 export const updateNotice = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, description, type, isUrgent } = req.body;
-    
-    const notice = await Notice.findById(id);
-    if (!notice) return res.status(404).json({ message: "Notice not found" });
 
-    // Handle File Update
-    if (req.file) {
-      const upload = await uploadToCloudinary(req.file, "notices");
-      notice.fileUrl = upload.secure_url;
-      notice.fileName = upload.original_filename || req.file.originalname;
-      notice.fileSize = `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`;
+    const updateData = { ...req.body };
+
+    if (updateData.title) {
+      updateData.slug = generateSlug(updateData.title);
     }
 
-    // Update fields only if provided
-    if (title) notice.title = title;
-    if (description) notice.description = description;
-    if (type) notice.type = type;
-    if (isUrgent !== undefined) notice.isUrgent = isUrgent === 'true' || isUrgent === true;
+    if (typeof updateData.eventDetails === "string") {
+      updateData.eventDetails = JSON.parse(updateData.eventDetails);
+    }
 
-    const updatedNotice = await notice.save();
+    const updatedNotice = await Notice.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+
+    if (!updatedNotice) {
+      return res.status(404).json({ message: "Notice not found" });
+    }
+
     res.json(updatedNotice);
   } catch (error) {
-    res.status(500).json({ message: "Failed to update notice", error: getErrorMessage(error) });
+    res
+      .status(500)
+      .json({ message: "Update failed", error: getErrorMessage(error) });
   }
 };
 
-// ----------------- DELETE NOTICE (ADMIN) -----------------
+// ----------------- 5. DELETE NOTICE -----------------
 export const deleteNotice = async (req: AuthRequest, res: Response) => {
   try {
     const notice = await Notice.findByIdAndDelete(req.params.id);
-    if (!notice) return res.status(404).json({ message: "Notice not found" });
 
-    // Logic for deleting from Cloudinary could go here if needed
-    
+    if (!notice) {
+      return res.status(404).json({ message: "Notice not found" });
+    }
+
     res.json({ message: "Notice deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to delete notice", error: getErrorMessage(error) });
+    res
+      .status(500)
+      .json({ message: "Delete failed", error: getErrorMessage(error) });
   }
 };
 
-// noticeController.ts
-
-// 1. GET SINGLE NOTICE
-export const getNoticeById = async (req: AuthRequest, res: Response) => {
+// ----------------- 6. DOWNLOAD TRACKING -----------------
+export const downloadNotice = async (req: Request, res: Response) => {
   try {
-    const notice = await Notice.findById(req.params.id);
-    if (!notice) return res.status(404).json({ message: "Notice not found" });
+    const notice = await Notice.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { "stats.downloads": 1 } },
+      { new: true }
+    );
 
-    notice.views += 1;
-    await notice.save();
-    res.json(notice);
+    if (!notice || notice.attachments.length === 0) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    res.json({
+      url: notice.attachments[0].fileUrl,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching notice" });
+    res.status(500).json({ message: "Download tracking failed" });
   }
 };
 
-// 2. DOWNLOAD NOTICE
-export const downloadNotice = async (req: AuthRequest, res: Response) => {
-  try {
-    const notice = await Notice.findById(req.params.id);
-    if (!notice) return res.status(404).json({ message: "Notice not found" });
-
-    notice.downloads += 1;
-    await notice.save();
-    res.json({ url: notice.fileUrl });
-  } catch (error) {
-    res.status(500).json({ message: "Download count update failed" });
-  }
-};
-
-// ----------------- PUBLIC CONTROLLERS -----------------
-
+// ----------------- 7. PUBLIC NOTICES -----------------
 export const getPublicNotices = async (req: Request, res: Response) => {
   try {
-    const { type, search } = req.query;
-    let query: any = {};
+    const { priority } = req.query;
 
-    if (type && type !== "ALL") query.type = type;
-    if (search) query.title = { $regex: search, $options: "i" };
+    const query: any = {
+      isActive: true,
+      $or: [
+        { expiryDate: { $exists: false } },
+        { expiryDate: { $gte: new Date() } },
+      ],
+    };
+
+    if (priority && priority !== "ALL") {
+      query.priority = priority;
+    }
 
     const notices = await Notice.find(query)
-      .sort({ isUrgent: -1, createdAt: -1 })
+      .sort({ priority: -1, publishDate: -1 })
       .select("-__v -updatedAt")
       .lean();
 
     res.status(200).json(notices);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch public notices", error: getErrorMessage(error) });
+    res.status(500).json({
+      message: "Public notices fetch failed",
+      error: getErrorMessage(error),
+    });
   }
 };
 
+// ----------------- 8. PUBLIC SINGLE NOTICE -----------------
 export const getPublicNoticeById = async (req: Request, res: Response) => {
   try {
-    // findByIdAndUpdate is more atomic for view increments
-    const notice = await Notice.findByIdAndUpdate(
-      req.params.id, 
-      { $inc: { views: 1 } }, 
+    const notice = await Notice.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        isActive: true,
+        $or: [
+          { expiryDate: { $exists: false } },
+          { expiryDate: { $gte: new Date() } },
+        ],
+      },
+      { $inc: { "stats.views": 1 } },
       { new: true }
-    ).select("-__v");
+    ).select("-__v -updatedAt");
 
-    if (!notice) return res.status(404).json({ message: "Notice not found" });
+    if (!notice) {
+      return res.status(404).json({
+        message: "Notice not found or expired",
+      });
+    }
 
     res.status(200).json(notice);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch notice details" });
+    res.status(500).json({
+      message: "Failed to fetch notice",
+      error: getErrorMessage(error),
+    });
   }
 };
