@@ -10,7 +10,7 @@ const seedUsers = async () => {
     const seedData = [
       
   {
-    name: "Hon. Eric Kennedy Okumu Ogola",
+    name: "Eric Ogola",
     email: "eric.ogola@court.go.ke",
     password: "Registrar@2026",
     pj: "55940",
@@ -19,7 +19,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Roseline C. Langat Korir",
+    name: "Roseline C. Langat Korir",
     email: "roseline.korir@court.go.ke",
     password: "Registrar@2026",
     pj: "56001",
@@ -27,7 +27,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Rose Edwina Ougo",
+    name: "Rose Edwina Ougo",
     email: "rougo@court.go.ke",
     password: "Registrar@2026",
     pj: "14009",
@@ -35,7 +35,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. David Kipyegomen Kemei",
+    name: "David Kipyegomen Kemei",
     email: "dkemei@court.go.ke",
     password: "Registrar@2026",
     pj: "33095",
@@ -43,7 +43,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. William Musya Musyoka",
+    name: "William Musya Musyoka",
     email: "william.musyoka@court.go.ke",
     password: "Registrar@2026",
     pj: "59326",
@@ -51,7 +51,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Lucy Waruguru Gitari",
+    name: "Lucy Gitari",
     email: "lucy.gitari@court.go.ke",
     password: "Registrar@2026",
     pj: "12926",
@@ -59,7 +59,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Reuben Nyambati Nyakundi",
+    name: "Reuben Nyakundi",
     email: "rnyakundi@court.go.ke",
     password: "Registrar@2026",
     pj: "14978",
@@ -67,7 +67,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. John.R Wananda Anundo",
+    name: "John.R Wananda Anundo",
     email: "wananda.john@court.go.ke",
     password: "Registrar@2026",
     pj: "81735",
@@ -75,7 +75,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Emily Onyando Ominde",
+    name: "Emily Ominde",
     email: "emily.ominde@court.go.ke",
     password: "Registrar@2026",
     pj: "19871",
@@ -83,15 +83,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Lucy Mwihaki Njuguna",
-    email: "lucy.njuguna@court.go.ke",
-    password: "Registrar@2026",
-    pj: "65416",
-    role: "judge",
-    isVerified: true
-  },
-  {
-    name: "Hon. John Nyabuto Onyiego",
+    name: "John Onyiego",
     email: "john.onyiego@court.go.ke",
     password: "Registrar@2026",
     pj: "20424",
@@ -99,7 +91,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Waweru Kiarie Kiarie",
+    name: "Kiarie Waweru Kiarie",
     email: "wkiarie@court.go.ke",
     password: "Registrar@2026",
     pj: "14960",
@@ -108,15 +100,7 @@ const seedUsers = async () => {
   },
  
   {
-    name: "Hon. Rachel Chepkoech Ngetich",
-    email: "rachael.ngetich@court.go.ke",
-    password: "Registrar@2026",
-    pj: "20880",
-    role: "judge",
-    isVerified: true
-  },
-  {
-    name: "Hon. Stella Ngali Mutuku",
+    name: "Stella Mutuku",
     email: "stella.mutuku@court.go.ke",
     password: "Registrar@2026",
     pj: "16425",
@@ -124,7 +108,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. John Lolwalan Tamar",
+    name: "John Lolwalan Tamar",
     email: "john.tamar@court.go.ke",
     password: "Registrar@2026",
     pj: "20775",
@@ -132,7 +116,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Sophie Chebet Chirchir",
+    name: "Sophie Chebet Chirchir",
     email: "sophie.chirchir@court.go.ke",
     password: "Registrar@2026",
     pj: "81734",
@@ -140,7 +124,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Alice Chepngetich Bett",
+    name: "Alice Chepngetich Bett",
     email: "alice.soi@court.go.ke",
     password: "Registrar@2026",
     pj: "82774",
@@ -148,7 +132,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Stephen Nzisi Mbungi",
+    name: "Stephen Mbungi",
     email: "smbungi@court.go.ke",
     password: "Registrar@2026",
     pj: "21755",
@@ -156,7 +140,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Roseline P.V Wendoh",
+    name: "Roseline P.V Wendoh",
     email: "rwendoh@court.go.ke",
     password: "Registrar@2026",
     pj: "10885",
@@ -165,7 +149,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Joseph Raphael Karanja",
+    name: "Joseph Raphael Karanja",
     email: "joseph.karanja@court.go.ke",
     password: "Registrar@2026",
     pj: "10916",
@@ -175,7 +159,7 @@ const seedUsers = async () => {
   },
   
   {
-    name: "Hon. Joseph Kiplagat Sergon",
+    name: "Joseph Sergon",
     email: "joseph.sergon@court.go.ke",
     password: "Registrar@2026",
     pj: "38841",
@@ -183,7 +167,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Richard Mururu Mwongo",
+    name: "Richard Mwongo",
     email: "rmwongo@court.go.ke",
     password: "Registrar@2026",
     pj: "55990",
@@ -191,7 +175,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Abigal Shiganga Mshila",
+    name: "Abigail Mshila",
     email: "amshila@court.go.ke",
     password: "Registrar@2026",
     pj: "56027",
@@ -199,7 +183,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Dorah Odityo Chepkwony",
+    name: "Dorah Chepkwony",
     email: "dorah.chepkwony@court.go.ke",
     password: "Registrar@2026",
     pj: "19732",
@@ -207,7 +191,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Diana Rachel Kavedza",
+    name: "Diana Rachel Kavedza",
     email: "diana.kavedza@court.go.ke",
     password: "Registrar@2026",
     pj: "20660",
@@ -215,7 +199,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Teresia Ochieng Odera",
+    name: "Teresia Ochieng Odera",
     email: "teresa.odera@court.go.ke",
     password: "Registrar@2026",
     pj: "40140",
@@ -223,7 +207,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Roselyne Makokha Ekirapa Aburili",
+    name: "Roselyne Aburili",
     email: "roselyne.aburili@court.go.ke",
     password: "Registrar@2026",
     pj: "65238",
@@ -231,7 +215,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Mwanaisha Saida SharifF",
+    name: "Mwanaisha Saida SharifF",
     email: "mwanaisha.saida@court.go.ke",
     password: "Registrar@2026",
     pj: "81740",
@@ -239,7 +223,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Antony Charo Mrima",
+    name: "Antony Mrima",
     email: "antony.murima@court.go.ke",
     password: "Registrar@2026",
     pj: "65270",
@@ -247,7 +231,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Robert Kipkoech Limo",
+    name: "Robert Limo",
     email: "robert.limo@court.go.ke",
     password: "Registrar@2026",
     pj: "65254",
@@ -255,7 +239,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Patrick Okwarro Otieno",
+    name: "Patrick J. Otieno",
     email: "patrick.otieno@court.go.ke",
     password: "Registrar@2026",
     pj: "65377",
@@ -263,7 +247,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Margaret Waringa Muigai",
+    name: "Margaret Muigai",
     email: "margaret.muigai@court.go.ke",
     password: "Registrar@2026",
     pj: "16522",
@@ -271,7 +255,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Francis Odhiambo Olel",
+    name: "Francis Odhiambo Olel",
     email: "francis.rayola@court.go.ke",
     password: "Registrar@2026",
     pj: "81738",
@@ -279,7 +263,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Noel Onditi Adagi Inziani",
+    name: "Noel Onditi Adagi Inziani",
     email: "noel.adagi@court.go.ke",
     password: "Registrar@2026",
     pj: "82767",
@@ -287,7 +271,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Teresia Mumbua Matheka",
+    name: "Teresia Mumbua Matheka",
     email: "mumbua.matheka@court.go.ke",
     password: "Registrar@2026",
     pj: "20694",
@@ -295,7 +279,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Mugure Thande",
+    name: "Mugure Thande",
     email: "mugure.thande@court.go.ke",
     password: "Registrar@2026",
     pj: "65385",
@@ -304,7 +288,7 @@ const seedUsers = async () => {
   },
   
   {
-    name: "Hon. Stephen Murugu Githinji",
+    name: "Stephen Githinji",
     email: "stephen.githinji@court.go.ke",
     password: "Registrar@2026",
     pj: "20432",
@@ -312,7 +296,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Jesse Njagi Nyaga",
+    name: "Jesse Njagi Nyaga",
     email: "jesse.nyagah@court.go.ke",
     password: "Registrar@2026",
     pj: "15013",
@@ -320,7 +304,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Edward Muthoga Muriithi",
+    name: "Edward Muriithi",
     email: "edward.muriithi@court.go.ke",
     password: "Registrar@2026",
     pj: "39512",
@@ -328,7 +312,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Linus Poghon Kassan",
+    name: "Linus Poghon Kassan",
     email: "linus.kassan@court.go.ke",
     password: "Registrar@2026",
     pj: "40181",
@@ -336,7 +320,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Anne C. A. Adwera Ong'injo",
+    name: "Anne C. A. Adwera Ong'injo",
     email: "aonginjo@court.go.ke",
     password: "Registrar@2026",
     pj: "20555",
@@ -344,7 +328,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Benjamin Mwikya Musyoki",
+    name: "Benjamin Mwikya Musyoki",
     email: "benjamin.musyoki@court.go.ke",
     password: "Registrar@2026",
     pj: "82775",
@@ -352,7 +336,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Jairus Ngaah",
+    name: "Jairus Ngaah",
     email: "jairus.ngaah@court.go.ke",
     password: "Registrar@2026",
     pj: "59342",
@@ -360,7 +344,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. John Mwigumi Chigiti",
+    name: "John Chigiti",
     email: "john.chigiti@court.go.ke",
     password: "Registrar@2026",
     pj: "81739",
@@ -368,7 +352,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Esther Nyambura Maina",
+    name: "Esther Maina",
     email: "esther.maina@court.go.ke",
     password: "Registrar@2026",
     pj: "15021",
@@ -376,7 +360,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Julius Mukut Nangea",
+    name: "Julius Mukut Nangea",
     email: "jmukuti@court.go.ke",
     password: "Registrar@2026",
     pj: "33710",
@@ -384,7 +368,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Tabitha Ouya Wanyama",
+    name: "Tabitha Ouya Wanyama",
     email: "tabitha.wanyama@court.go.ke",
     password: "Registrar@2026",
     pj: "82766",
@@ -392,7 +376,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Joe Omido Mkutu",
+    name: "Joe Omido Mkutu",
     email: "jmkutu@court.go.ke",
     password: "Registrar@2026",
     pj: "43294",
@@ -400,7 +384,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Christine Wanjiku Meoli",
+    name: "Christine Meoli",
     email: "christine.meoli@court.go.ke",
     password: "Registrar@2026",
     pj: "12950",
@@ -408,7 +392,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Janet Nzilani Mulwa",
+    name: "Janet Mulwa",
     email: "janet.mulwa@court.go.ke",
     password: "Registrar@2026",
     pj: "65288",
@@ -416,7 +400,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Benjamin Kimani Njoroge",
+    name: "Benjamin Kimani Njoroge",
     email: "benjamin.njoroge@court.go.ke",
     password: "Registrar@2026",
     pj: "82770",
@@ -424,7 +408,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Rhoda Cherotich Rutto",
+    name: "Rhoda Cherotich Rutto",
     email: "rhoda.cherotich@court.go.ke",
     password: "Registrar@2026",
     pj: "61315",
@@ -432,7 +416,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Freda Mugambi Githiru",
+    name: "Freda Mugambi Githiru",
     email: "freda.mugambi@court.go.ke",
     password: "Registrar@2026",
     pj: "81743",
@@ -440,7 +424,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Nixon Sifuna Wanyama",
+    name: "Nixon Sifuna Wanyama",
     email: "nixon.sifuna@court.go.ke",
     password: "Registrar@2026",
     pj: "81737",
@@ -448,7 +432,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Alfred Mabeya",
+    name: "Alfred Mabeya",
     email: "amabeya@court.go.ke",
     password: "Registrar@2026",
     pj: "56019",
@@ -456,7 +440,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Margaret Njoki Mwangi",
+    name: "Margaret Njoki Mwangi",
     email: "margaret.mwangi@court.go.ke",
     password: "Registrar@2026",
     pj: "65369",
@@ -464,7 +448,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Visram Alnashir Aleem",
+    name: "Visram Alnashir Aleem",
     email: "aleem.visram@court.go.ke",
     password: "Registrar@2026",
     pj: "81744",
@@ -472,7 +456,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Moses Ado Otieno",
+    name: "Moses Ado Otieno",
     email: "moses.ado@court.go.ke",
     password: "Registrar@2026",
     pj: "82773",
@@ -480,7 +464,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Peter Mutua Mulwa",
+    name: "Peter Mulwa",
     email: "pmulwa@court.go.ke",
     password: "Registrar@2026",
     pj: "34059",
@@ -488,7 +472,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Josephine Wambua Mongare",
+    name: "Josephine Wambua Mongare",
     email: "josephine.mongare@court.go.ke",
     password: "Registrar@2026",
     pj: "81733",
@@ -496,15 +480,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Enock Chacha Mwita",
-    email: "enock.mwita@court.go.ke",
-    password: "Registrar@2026",
-    pj: "65246",
-    role: "judge",
-    isVerified: true
-  },
-  {
-    name: "Hon. Andrew Bahati Mwamuye",
+    name: "Bahati Mwamuye",
     email: "bahati.mwamuye@court.go.ke",
     password: "Registrar@2026",
     pj: "82768",
@@ -512,7 +488,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Lawrence Mugambi Nthiga",
+    name: "Lawrence Mugambi Nthiga",
     email: "lawrence.mugambi@court.go.ke",
     password: "Registrar@2026",
     pj: "34732",
@@ -521,7 +497,7 @@ const seedUsers = async () => {
   },
   
   {
-    name: "Hon. George Kanyi Kimondo",
+    name: "Kanyi Kimondo",
     email: "kanyi.kimondo@court.go.ke",
     password: "Registrar@2026",
     pj: "55877",
@@ -529,7 +505,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Lilian Nabwire Mutende",
+    name: "Lilian Mutende",
     email: "lmutende@court.go.ke",
     password: "Registrar@2026",
     pj: "16394",
@@ -537,7 +513,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Alexander Muasya Muteti",
+    name: "Alexander Muteti",
     email: "alexander.muteti@court.go.ke",
     password: "Registrar@2026",
     pj: "82772",
@@ -545,7 +521,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Stephen Nyangau Riechi",
+    name: "Stephen Riechi",
     email: "stephen.riechi@court.go.ke",
     password: "Registrar@2026",
     pj: "14156",
@@ -553,7 +529,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Patricia Mande Nyaundi",
+    name: "Patricia Mande Nyaundi",
     email: "patricia.nyaundi@court.go.ke",
     password: "Registrar@2026",
     pj: "81732",
@@ -561,7 +537,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Hilary Kiplagat Chemitei",
+    name: "Hilary Chemitei",
     email: "hilary.chemitei@court.go.ke",
     password: "Registrar@2026",
     pj: "55966",
@@ -569,7 +545,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Helen Rafaela Namisi",
+    name: "Helen Rafaela Namisi",
     email: "helene.namisi@court.go.ke",
     password: "Registrar@2026",
     pj: "82769",
@@ -577,7 +553,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Caroline Jepyegen Kendagor",
+    name: "Caroline Kendagor",
     email: "caroline.kendagor@court.go.ke",
     password: "Registrar@2026",
     pj: "52227",
@@ -585,7 +561,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Olga Akech Sewe",
+    name: "Olga Sewe",
     email: "olga.sewe@court.go.ke",
     password: "Registrar@2026",
     pj: "13883",
@@ -593,7 +569,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Florence Wangari Macharia",
+    name: "Florence Wangari Kabiru",
     email: "florence.wangari@court.go.ke",
     password: "Registrar@2026",
     pj: "40725",
@@ -601,7 +577,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Gregory Mutai",
+    name: "Gregory Mutai",
     email: "gregory.mutai@court.go.ke",
     password: "Registrar@2026",
     pj: "81742",
@@ -609,15 +585,15 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Francis Weche Andayi",
+    name: "Francis Andayi",
     email: "fandayi@court.go.ke",
     password: "Registrar@2026",
-    pj: "32253",
+    pj: "34253",
     role: "judge",
     isVerified: true
   },
   {
-    name: "Hon. Julius Kipkosgei Ng'arng'ar",
+    name: "Julius Kipkosgei Ng'arng'ar",
     email: "julius.ngarngar@court.go.ke",
     password: "Registrar@2026",
     pj: "33147",
@@ -625,7 +601,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Wendy Kagendo Micheni",
+    name: "Wendy Kagendo Micheni",
     email: "wendy.micheni@court.go.ke",
     password: "Registrar@2026",
     pj: "33192",
@@ -633,7 +609,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Cecilia Wathaiya Githua",
+    name: "Cecilia Githua",
     email: "cecilia.githua@court.go.ke",
     password: "Registrar@2026",
     pj: "16530",
@@ -642,7 +618,7 @@ const seedUsers = async () => {
   },
   
   {
-    name: "Hon. James Auodo Wakiaga",
+    name: "James Wakiaga",
     email: "james.wakiaga@court.go.ke",
     password: "Registrar@2026",
     pj: "55924",
@@ -650,7 +626,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Grace Lidembu Nzioka",
+    name: "Grace Nzioka",
     email: "grace.nzioka@court.go.ke",
     password: "Registrar@2026",
     pj: "15071",
@@ -658,7 +634,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Hedwig Imbosa Ongudi",
+    name: "Hedwig Imbosa Ongudi",
     email: "hedwig.imbosa@court.go.ke",
     password: "Registrar@2026",
     pj: "15869",
@@ -666,15 +642,15 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Patricia Njeri Gichohi",
+    name: "Patricia Gichohi",
     email: "patricia.gichohi@court.go.ke",
     password: "Registrar@2026",
-    pj: "20369",
+    pj: "19855",
     role: "judge",
     isVerified: true
   },
   {
-    name: "Hon. Samwel Mukira Muhochi",
+    name: "Samwel Muhochi",
     email: "samwel.mohochi@court.go.ke",
     password: "Registrar@2026",
     pj: "81736",
@@ -682,7 +658,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Heston Mbogo Nyaga",
+    name: "Heston Mbogo Nyaga",
     email: "heston.nyaga@court.go.ke",
     password: "Registrar@2026",
     pj: "39928",
@@ -690,7 +666,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Anthony Kimani Ndung'u",
+    name: "Anthony Kimani Ndung'u",
     email: "anthony.ndungu@court.go.ke",
     password: "Registrar@2026",
     pj: "20644",
@@ -698,7 +674,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Francis Gikonyo Muthuku",
+    name: "Francis Gikonyo Muthuku",
     email: "francis.gikonyo@court.go.ke",
     password: "Registrar@2026",
     pj: "59350",
@@ -706,7 +682,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Charles Kariuki Mutungi",
+    name: "Charles Kariuki Mutungi",
     email: "charles.kariuki@court.go.ke",
     password: "Registrar@2026",
     pj: "65262",
@@ -714,7 +690,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Wilfrida Adhiambo Osodo",
+    name: "Wilfrida Osodo",
     email: "wilfrida.osodo@court.go.ke",
     password: "Registrar@2026",
     pj: "65408",
@@ -722,7 +698,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Dennis Ng'ono Magare",
+    name: "Dennis Magare",
     email: "kizito.magare@court.go.ke",
     password: "Registrar@2026",
     pj: "81741",
@@ -730,7 +706,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Maureen Akinyi Odero",
+    name: "Maureen Odero",
     email: "moderoj@court.go.ke",
     password: "Registrar@2026",
     pj: "13998",
@@ -739,7 +715,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Martin Mati Muya",
+    name: "Martin Mati Muya",
     email: "martin.muya@court.go.ke",
     password: "Registrar@2026",
     pj: "10932",
@@ -747,7 +723,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Florence Nyaguthii Muchemi",
+    name: "Florence Muchemi",
     email: "florence.muchemi@court.go.ke",
     password: "Registrar@2026",
     pj: "11904",
@@ -756,7 +732,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Nancy Jaquline Njuhi Kamau",
+    name: "Jacqueline Kamau",
     email: "nancy.kamau@court.go.ke",
     password: "Registrar@2026",
     pj: "59334",
@@ -764,7 +740,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Asenath Nyaboke Ongeri",
+    name: "Asenath Ongeri",
     email: "asenath.ongeri@court.go.ke",
     password: "Registrar@2026",
     pj: "16239",
@@ -772,24 +748,15 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Clara Otieno Omondi",
+    name: "Clara Otieno Omondi",
     email: "claraotieno23@gmail.com",
     password: "Registrar@2026",
     pj: "43244",
     role: "admin",
     isVerified: true
   },
-  
   {
-    name: "Hon. Keith Otieno Omondi",
-    email: "denniskeith62@gmail.com",
-    password: "Registrar@2026",
-    pj: "43211",
-    role: "judge",
-    isVerified: true
-  },
-  {
-    name: "Hon. Terry Odera",
+    name: "Terry Odera",
     email: "oderaterry@yahoo.com",
     password: "Registrar@2026",
     pj: "40149",
@@ -797,15 +764,7 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Hon. Francis Andanyi",
-    email: "francis.andanyi@court.go.ke",
-    password: "Registrar@2026",
-    pj: "34253",
-    role: "judge",
-    isVerified: true
-  },
-  {
-    name: "Hon. Office of the Registrar High Court",
+    name: "Office of the Registrar High Court",
     email: "registrarhighcourt2015@gmail.com",
     password: "Registrar@2026",
     pj: "12345",

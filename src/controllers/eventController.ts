@@ -3,7 +3,7 @@ import Event, { EventFilter } from "../models/event.model";
 import { AuthRequest } from "../middlewares/authMiddleware";
 
 /* ===============================
-   CREATE EVENT (ADMIN)
+    CREATE EVENT (ADMIN)
 ================================ */
 export const createEvent = async (req: AuthRequest, res: Response) => {
   try {
@@ -11,29 +11,32 @@ export const createEvent = async (req: AuthRequest, res: Response) => {
       title, 
       description, 
       location, 
-      date, 
-      endTime, 
-      time, 
+      startDate,  // Updated
+      endDate,    // Updated
       isMandatory, 
       status, 
       capacity 
     } = req.body;
 
+    // Logic Check: End date must be after start date
+    if (new Date(endDate) <= new Date(startDate)) {
+      return res.status(400).json({ 
+        message: "Event end date must be strictly after the start date." 
+      });
+    }
+
     const event = await Event.create({
       title,
       description,
       location,
-      date,
-      endTime,
-      time,
+      startDate,
+      endDate,
       isMandatory,
       status: status || "SCHEDULED",
       capacity,
       createdBy: req.user?.id,
     });
 
-    // We return the event; Mongoose will automatically include the 'scheduledAt' 
-    // virtual because we set toJSON: { virtuals: true } in the model.
     res.status(201).json(event);
   } catch (error) {
     console.error("Create Event Error:", error);
@@ -42,15 +45,14 @@ export const createEvent = async (req: AuthRequest, res: Response) => {
 };
 
 /* ===============================
-   GET EVENTS (FILTERED)
-   ?filter=UPCOMING | PAST | RECENT | ALL
+    GET EVENTS (FILTERED)
+    ?filter=UPCOMING | PAST | RECENT | ALL
 ================================ */
 export const getEvents = async (req: Request, res: Response) => {
   try {
     const filter = (req.query.filter as EventFilter) || "ALL";
 
-    // The model's static method already handles the logic for 
-    // UPCOMING (date >= today) and PAST (older or cancelled/completed)
+    // Static method handles sorting/filtering based on startDate/endDate
     const events = await Event.getFilteredEvents(filter);
 
     res.json(events);
@@ -60,7 +62,7 @@ export const getEvents = async (req: Request, res: Response) => {
 };
 
 /* ===============================
-   GET SINGLE EVENT
+    GET SINGLE EVENT
 ================================ */
 export const getEventById = async (req: Request, res: Response) => {
   try {
@@ -78,39 +80,43 @@ export const getEventById = async (req: Request, res: Response) => {
 };
 
 /* ===============================
-   UPDATE EVENT (ADMIN)
+    UPDATE EVENT (ADMIN)
 ================================ */
 export const updateEvent = async (req: AuthRequest, res: Response) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const { startDate, endDate } = req.body;
+
+    // Logic Check for dates if both are being updated
+    if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+      return res.status(400).json({ message: "End date must be after start date" });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // Merge updates (useful for updating status to ONGOING or COMPLETED)
-    Object.assign(event, req.body);
-
-    const updated = await event.save();
-
-    res.json(updated);
+    res.json(event);
   } catch (error) {
     res.status(500).json({ message: "Failed to update judicial record" });
   }
 };
 
 /* ===============================
-   DELETE EVENT (ADMIN)
+    DELETE EVENT (ADMIN)
 ================================ */
 export const deleteEvent = async (req: AuthRequest, res: Response) => {
   try {
-    const event = await Event.findById(req.params.id);
+    const event = await Event.findByIdAndDelete(req.params.id);
 
     if (!event) {
       return res.status(404).json({ message: "Event record not found" });
     }
-
-    await event.deleteOne();
 
     res.json({ message: "Event permanently removed from registry" });
   } catch (error) {
@@ -119,32 +125,27 @@ export const deleteEvent = async (req: AuthRequest, res: Response) => {
 };
 
 /* ===============================
-   GUEST: GET ALL EVENTS (PUBLIC)
+    GUEST: GET ALL EVENTS (PUBLIC)
 ================================ */
 export const getPublicEvents = async (req: Request, res: Response) => {
   try {
-    // Guests get the "ALL" filter by default
     const filter = (req.query.filter as EventFilter) || "ALL";
-    
-    // Using the same static method from your Model
     const events = await Event.getFilteredEvents(filter);
 
-    // If you ever want to hide fields from guests, you'd do it here
     res.json(events);
   } catch (error) {
-    console.error("Public Fetch Error:", error);
     res.status(500).json({ message: "Error fetching public event registry" });
   }
 };
 
 /* ===============================
-   GUEST: GET SINGLE EVENT (PUBLIC)
+    GUEST: GET SINGLE EVENT (PUBLIC)
 ================================ */
 export const getPublicEventById = async (req: Request, res: Response) => {
   try {
     const event = await Event.findById(req.params.id)
-      .select("-__v") // Example: Hiding internal version keys from guests
-      .populate("createdBy", "name"); // Only show name, hide role from guests
+      .select("-__v")
+      .populate("createdBy", "name");
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
