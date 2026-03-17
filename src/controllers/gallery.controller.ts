@@ -3,30 +3,41 @@ import { Gallery } from "../models/gallery.model";
 import { AuthRequest } from "../middlewares/authMiddleware";
 import cloudinary, { uploadToCloudinary } from "../config/cloudinary";
 
-// -------------------- Upload media - admin only --------------------
+// -------------------- Upload multiple media - admin only --------------------
 export const uploadMedia = async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
       return res.status(403).json({ message: "Only admins can upload media" });
     }
 
-    const { title, description, category } = req.body;
-    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    const { description } = req.body;
+    const files = req.files as Express.Multer.File[];
 
-    const folder = category === "evidence" ? "gallery/evidence" : "gallery/general";
-    const result = await uploadToCloudinary(req.file, folder);
+    if (!files || files.length === 0) {
+      return res.status(400).json({ message: "No files provided" });
+    }
 
-    const media = await Gallery.create({
-      title,
-      description,
-      category,
-      url: result.secure_url,
-      publicId: result.public_id,
-      resourceType: result.resource_type, // 'image' or 'video'
-      uploadedBy: req.user!.id,
+    // Process all uploads in parallel
+    const uploadPromises = files.map(async (file) => {
+      // Upload to a generic gallery folder
+      const result = await uploadToCloudinary(file, "gallery/uploads");
+
+      // Create database record using the updated schema
+      return Gallery.create({
+        description,
+        url: result.secure_url,
+        publicId: result.public_id,
+        resourceType: result.resource_type, // Cloudinary returns 'image' or 'video'
+        uploadedBy: req.user!.id,
+      });
     });
 
-    return res.status(201).json(media);
+    const savedMedia = await Promise.all(uploadPromises);
+
+    return res.status(201).json({
+      message: `${savedMedia.length} items uploaded successfully`,
+      data: savedMedia,
+    });
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
   }
@@ -35,13 +46,11 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
 // -------------------- Fetch gallery - all roles --------------------
 export const getGallery = async (req: AuthRequest, res: Response) => {
   try {
-    const { category } = req.query;
-    const filter = category ? { category } : {};
-    
-    const media = await Gallery.find(filter)
+    // Filter removed as category was removed from schema
+    const media = await Gallery.find()
       .sort({ createdAt: -1 })
       .populate("uploadedBy", "name role");
-      
+
     return res.status(200).json(media);
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
@@ -52,15 +61,14 @@ export const getGallery = async (req: AuthRequest, res: Response) => {
 export const getGalleryAdmin = async (req: AuthRequest, res: Response) => {
   try {
     if (req.user!.role !== "admin") {
-      return res.status(403).json({ message: "Only admins can access this endpoint" });
+      return res
+        .status(403)
+        .json({ message: "Only admins can access this endpoint" });
     }
 
-    const { category } = req.query;
-    const filter = category ? { category } : {};
-    
-    const media = await Gallery.find(filter)
+    const media = await Gallery.find()
       .sort({ createdAt: -1 })
-      .populate("uploadedBy", "name email role"); // admins get email too
+      .populate("uploadedBy", "name email role");
 
     return res.status(200).json(media);
   } catch (err: any) {
@@ -80,6 +88,7 @@ export const deleteMedia = async (req: AuthRequest, res: Response) => {
 
     if (!media) return res.status(404).json({ message: "Media not found" });
 
+    // Important: Cloudinary needs the resource_type to delete videos correctly
     await cloudinary.uploader.destroy(media.publicId, {
       resource_type: media.resourceType,
     });

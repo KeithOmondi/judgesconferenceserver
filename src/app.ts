@@ -71,7 +71,7 @@ app.use("/api/v1/guests", guestsRoutes);
 app.use("/api/v1/notices", noticeRoutes);
 app.use("/api/v1/events", eventsRoutes);
 app.use("/api/v1/oath/court-info", swearingPreferenceRoutes);
-app.use("/api/v1/gallary", gallaryRoutes);
+app.use("/api/v1/gallery", gallaryRoutes);
 
 
 /**
