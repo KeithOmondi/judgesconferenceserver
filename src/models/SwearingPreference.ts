@@ -1,38 +1,35 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ICourtInformation extends Document {
-  // --- BIO SECTION ---
   judges: {
+    _id: mongoose.Types.ObjectId;
     name: string;
     title: string;
     description: string;
     imageUrl: string;
     imagePublicId: string;
   }[];
-
-  // --- PRESENTATION SECTION ---
   presentations: {
+    _id: mongoose.Types.ObjectId;
     title: string;
     fileUrl: string;
     fileType: string; 
     publicId: string;
+    resourceType: string; // Store: 'video', 'image', or 'raw'
     uploadedAt: Date;
   }[];
-
-  // --- PROGRAM SECTION (Updated) ---
   program: {
     items: {
-      time: string;
-      event: string;
-      location: string;
+      time?: string;
+      event?: string;
+      location?: string;
       iconType?: string;
     }[];
-    // New fields for scheduling and file uploads
     scheduledRelease: Date | null; 
-    programFileUrl?: string;       // For the uploaded PDF Program
+    programFileUrl?: string;
     programFilePublicId?: string;
+    programFileResourceType?: string;
   };
-
   updatedBy: mongoose.Types.ObjectId;
 }
 
@@ -47,23 +44,21 @@ const CourtInformationSchema: Schema = new Schema(
         imagePublicId: { type: String },
       },
     ],
-
     presentations: [
       {
         title: { type: String, required: true },
         fileUrl: { type: String, required: true },
         fileType: { type: String },
         publicId: { type: String },
+        resourceType: { type: String },
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
-
-    // Updated Program Schema to be an Object rather than just an Array
     program: {
       items: [
         {
-          time: { type: String, required: true },
-          event: { type: String, required: true },
+          time: { type: String },
+          event: { type: String },
           location: { type: String },
           iconType: { type: String, default: "clock" },
         },
@@ -71,8 +66,8 @@ const CourtInformationSchema: Schema = new Schema(
       scheduledRelease: { type: Date, default: null },
       programFileUrl: { type: String },
       programFilePublicId: { type: String },
+      programFileResourceType: { type: String },
     },
-
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }

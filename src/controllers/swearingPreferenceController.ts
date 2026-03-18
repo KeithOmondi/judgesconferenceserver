@@ -1,54 +1,47 @@
 import { Request, Response } from "express";
-import CourtInformation from "../models/SwearingPreference";
 import cloudinary, { uploadToCloudinary } from "../config/cloudinary";
+import CourtInformation from "../models/SwearingPreference"
 
 export const getCourtInfo = async (req: Request, res: Response) => {
   try {
     const info = await CourtInformation.findOne().lean();
-    
     if (!info) {
       return res.status(200).json({ judges: [], presentations: [], program: { items: [], scheduledRelease: null } });
     }
 
-    // --- TIME RESTRICTION LOGIC ---
-    // If a scheduled release date exists and the current time is before that date
+    // Time Restriction Logic
     if (info.program?.scheduledRelease && new Date() < new Date(info.program.scheduledRelease)) {
       return res.status(200).json({
         ...info,
         program: {
           ...info.program,
-          items: [], // Hide items
-          programFileUrl: null, // Hide PDF
-          isLocked: true // UI helper
+          items: [], 
+          programFileUrl: null, 
+          isLocked: true 
         }
       });
     }
-
     res.status(200).json(info);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// --- UPDATED PROGRAM ACTIONS ---
 export const updateProgram = async (req: Request, res: Response) => {
   try {
-    const { items, scheduledFor } = req.body;
-    
-    // Parse the items if they arrive as a JSON string from FormData
-    const programItems = typeof items === 'string' ? JSON.parse(items) : items;
+    const { scheduledFor, items } = req.body;
+    const updateData: any = {};
 
-    let updateData: any = {
-      "program.items": programItems,
-      "program.scheduledRelease": scheduledFor ? new Date(scheduledFor) : null,
-    };
+    // Handle Metadata
+    if (scheduledFor) updateData["program.scheduledRelease"] = new Date(scheduledFor);
+    if (items) updateData["program.items"] = JSON.parse(items);
 
-    // Handle Program PDF Upload if present
+    // Handle File Upload
     if (req.file) {
-      // Use 'raw' or 'auto' for PDFs in Cloudinary
       const result = await uploadToCloudinary(req.file, "judiciary/programs");
       updateData["program.programFileUrl"] = result.secure_url;
       updateData["program.programFilePublicId"] = result.public_id;
+      updateData["program.programFileResourceType"] = result.resource_type;
     }
 
     const info = await CourtInformation.findOneAndUpdate(
@@ -57,7 +50,7 @@ export const updateProgram = async (req: Request, res: Response) => {
       { upsert: true, new: true }
     );
 
-    res.status(200).json(info);
+    res.status(200).json({ message: "Program updated", program: info.program });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -65,97 +58,37 @@ export const updateProgram = async (req: Request, res: Response) => {
 
 export const addJudgeBio = async (req: Request, res: Response) => {
   try {
-    /* =============================
-       1️⃣ Validate Request Body
-    ============================= */
-    const { name, title, description } = req.body;
-
-    if (!name || !title || !description) {
-      return res.status(400).json({
-        message: "Name, title, and description are required",
-      });
-    }
-
-    /* =============================
-       2️⃣ Validate File
-    ============================= */
-    if (!req.file) {
-      return res.status(400).json({
-        message: "Judge image is required",
-      });
-    }
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({
-        message: "Invalid file type. Only JPG, PNG, WEBP allowed",
-      });
-    }
-
-    /* =============================
-       3️⃣ Upload to Cloudinary
-    ============================= */
+    if (!req.file) return res.status(400).json({ message: "Image required" });
     const result = await uploadToCloudinary(req.file, "judiciary/bios");
 
-    if (!result || !result.secure_url) {
-      throw new Error("Cloudinary upload failed");
-    }
-
-    /* =============================
-       4️⃣ Prepare Data
-    ============================= */
     const judgeData = {
-      name: name.trim(),
-      title: title.trim(),
-      description: description.trim(),
+      ...req.body,
       imageUrl: result.secure_url,
       imagePublicId: result.public_id,
-      createdAt: new Date(),
     };
 
-    /* =============================
-       5️⃣ Save to Database
-    ============================= */
     const info = await CourtInformation.findOneAndUpdate(
       {},
       { $push: { judges: judgeData } },
       { upsert: true, new: true }
     );
-
-    /* =============================
-       6️⃣ Response
-    ============================= */
-    return res.status(201).json({
-      message: "Judge bio added successfully",
-      data: info,
-    });
-
+    res.status(201).json(info);
   } catch (error: any) {
-    console.error("❌ ERROR in addJudgeBio:", error);
-
-    return res.status(500).json({
-      message: "Internal server error",
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : undefined,
-    });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// --- PRESENTATION ACTIONS ---
 export const addPresentation = async (req: Request, res: Response) => {
   try {
-    if (!req.file) return res.status(400).json({ message: "File or Video is required" });
-
+    if (!req.file) return res.status(400).json({ message: "File required" });
     const result = await uploadToCloudinary(req.file, "judiciary/presentations");
 
     const presentationData = {
       title: req.body.title,
       fileUrl: result.secure_url,
-      fileType: req.file.mimetype.split("/")[1], 
+      fileType: req.file.mimetype.split("/")[1],
       publicId: result.public_id,
+      resourceType: result.resource_type
     };
 
     const info = await CourtInformation.findOneAndUpdate(
@@ -163,7 +96,6 @@ export const addPresentation = async (req: Request, res: Response) => {
       { $push: { presentations: presentationData } },
       { upsert: true, new: true }
     );
-
     res.status(201).json(info);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -171,23 +103,40 @@ export const addPresentation = async (req: Request, res: Response) => {
 };
 
 export const deleteItem = async (req: Request, res: Response) => {
-  const type = req.params.type as string;
+  // 1. Cast 'type' to string to resolve ts(2538)
+  const type = req.params.type as string; 
   const id = req.params.id as string;
-  const publicId = req.params.publicId as string | undefined;
 
   try {
-    if (publicId && publicId !== "na") {
-      const resourceType = type === "presentations" ? "video" : "image"; 
-      await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+    const info = await CourtInformation.findOne();
+    if (!info) return res.status(404).json({ message: "Record not found" });
+
+    // 2. Optional: Add a guard to ensure 'type' is a valid array on your model
+    const allowedTypes = ["judges", "presentations"];
+    if (!allowedTypes.includes(type)) {
+      return res.status(400).json({ message: "Invalid category type" });
     }
 
-    const info = await CourtInformation.findOneAndUpdate(
-      {}, 
-      { $pull: { [type]: { _id: id } } as any }, 
-      { new: true }
-    );
+    // Accessing with (info as any)[type] is now safe from the index error
+    const targetArray = (info as any)[type];
+    
+    if (!targetArray || typeof targetArray.id !== 'function') {
+      return res.status(400).json({ message: "Invalid operation on this type" });
+    }
 
-    if (!info) return res.status(404).json({ message: "Record not found" });
+    const item = targetArray.id(id);
+    
+    if (item) {
+      const pId = item.imagePublicId || item.publicId;
+      const rType = item.resourceType || "image"; 
+      if (pId) {
+        await cloudinary.uploader.destroy(pId, { resource_type: rType });
+      }
+    }
+
+    targetArray.pull(id);
+    await info.save();
+    
     res.status(200).json(info);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
