@@ -15,46 +15,76 @@ import {
    1️⃣ LOGIN (PJ-only)
 ===================================== */
 export const login = async (req: Request, res: Response) => {
-  const { pj } = req.body;
+  try {
+    const { pj } = req.body;
 
-  if (!pj) {
-    return res.status(400).json({ 
-      success: false, 
-      message: "PJ number is required" 
+    console.log("🚀 [LOGIN] Incoming request:", { pj });
+
+    /* =========================
+       1️⃣ Validate Input
+    ========================= */
+    if (!pj) {
+      console.warn("⚠️ [LOGIN] Missing PJ number");
+      return res.status(400).json({
+        success: false,
+        message: "PJ number is required",
+      });
+    }
+
+    /* =========================
+       2️⃣ Find User
+    ========================= */
+    const user = await User.findOne({ pj }).select("+loginAttempts +lockUntil");
+
+    if (!user) {
+      console.warn(`❌ [LOGIN] User not found | PJ: ${pj}`);
+      return res.status(401).json({
+        success: false,
+        message: "Invalid PJ number",
+      });
+    }
+
+    /* =========================
+       3️⃣ Account Status Checks
+    ========================= */
+    if (!user.isActive) {
+      console.warn(`🚫 [LOGIN] Inactive account | PJ: ${pj}`);
+      return res.status(403).json({
+        success: false,
+        message: "This account is inactive",
+      });
+    }
+
+    if (user.isLocked && user.isLocked()) {
+      console.warn(`🔒 [LOGIN] Account locked | PJ: ${pj}`);
+      return res.status(423).json({
+        success: false,
+        message: "Account temporarily locked",
+      });
+    }
+
+    /* =========================
+       4️⃣ Reset Lock Counters
+    ========================= */
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
+    await user.save();
+
+    console.log(`✅ [LOGIN] Success | PJ: ${pj} | Name: ${user.name}`);
+
+    /* =========================
+       5️⃣ Send Auth Tokens
+    ========================= */
+    return sendTokens(res, user);
+
+  } catch (error: any) {
+    console.error("🔥 [LOGIN] Server error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error during login",
     });
   }
-
-  // 1. Find user by their PJ identifier
-  const user = await User.findOne({ pj });
-  
-  if (!user) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid pj number" });
-  }
-
-  // 2. Check if account is active or locked (if you still want security)
-  if (!user.isActive) {
-    return res.status(403).json({ 
-      success: false, 
-      message: "This account is inactive" 
-    });
-  }
-
-  if (user.isLocked()) {
-    return res.status(423).json({ 
-      success: false, 
-      message: "Account temporarily locked" 
-    });
-  }
-
-  // 3. Success: Issue tokens and redirect to dashboard
-  // (Clear any previous failed attempts since they just got in)
-  user.loginAttempts = 0;
-  user.lockUntil = undefined;
-  await user.save();
-
-  sendTokens(res, user);
 };
 
 /* =====================================

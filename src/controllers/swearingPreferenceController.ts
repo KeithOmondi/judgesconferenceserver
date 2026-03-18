@@ -63,30 +63,84 @@ export const updateProgram = async (req: Request, res: Response) => {
   }
 };
 
-// --- BIO ACTIONS ---
 export const addJudgeBio = async (req: Request, res: Response) => {
   try {
-    if (!req.file) return res.status(400).json({ message: "Judge image is required" });
+    /* =============================
+       1️⃣ Validate Request Body
+    ============================= */
+    const { name, title, description } = req.body;
 
+    if (!name || !title || !description) {
+      return res.status(400).json({
+        message: "Name, title, and description are required",
+      });
+    }
+
+    /* =============================
+       2️⃣ Validate File
+    ============================= */
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Judge image is required",
+      });
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({
+        message: "Invalid file type. Only JPG, PNG, WEBP allowed",
+      });
+    }
+
+    /* =============================
+       3️⃣ Upload to Cloudinary
+    ============================= */
     const result = await uploadToCloudinary(req.file, "judiciary/bios");
 
+    if (!result || !result.secure_url) {
+      throw new Error("Cloudinary upload failed");
+    }
+
+    /* =============================
+       4️⃣ Prepare Data
+    ============================= */
     const judgeData = {
-      name: req.body.name,
-      title: req.body.title,
-      description: req.body.description,
+      name: name.trim(),
+      title: title.trim(),
+      description: description.trim(),
       imageUrl: result.secure_url,
       imagePublicId: result.public_id,
+      createdAt: new Date(),
     };
 
+    /* =============================
+       5️⃣ Save to Database
+    ============================= */
     const info = await CourtInformation.findOneAndUpdate(
       {},
       { $push: { judges: judgeData } },
       { upsert: true, new: true }
     );
 
-    res.status(201).json(info);
+    /* =============================
+       6️⃣ Response
+    ============================= */
+    return res.status(201).json({
+      message: "Judge bio added successfully",
+      data: info,
+    });
+
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ ERROR in addJudgeBio:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined,
+    });
   }
 };
 

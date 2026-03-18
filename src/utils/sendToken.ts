@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import ms, { StringValue } from "ms";
 
 interface TokenUser {
-  id: string;
+  id: string; // This is the internal DB _id
   name: string;
   email: string;
   role: string;
@@ -18,13 +18,15 @@ export const sendTokens = (res: Response, user: TokenUser) => {
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "none" as const : "lax" as const,
+    // Mobile debug note: 'none' requires HTTPS. If testing on local IP, use 'lax'.
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
   };
 
+  /* ---------- 🍪 BROWSER COOKIES ---------- */
   res.cookie("accessToken", accessToken, {
     ...cookieOptions,
     maxAge: ms(env.JWT_ACCESS_EXPIRES_IN as StringValue),
-    path: "/", 
+    path: "/",
   });
 
   res.cookie("refreshToken", refreshToken, {
@@ -33,13 +35,19 @@ export const sendTokens = (res: Response, user: TokenUser) => {
     path: "/api/v1/auth/refresh",
   });
 
+  /* ---------- 📦 JSON RESPONSE ---------- */
   res.status(200).json({
     success: true,
     user: {
-      id: user.id,
+      _id: user.id, // 👈 Matched to your Redux interface 'User._id'
       name: user.name,
       email: user.email,
       role: user.role,
     },
+    // 👈 IMPORTANT FOR MOBILE: 
+    // Expo/Axios often cannot read httpOnly cookies.
+    // Sending these here allows you to manually store them in SecureStore.
+    accessToken,
+    refreshToken,
   });
 };
