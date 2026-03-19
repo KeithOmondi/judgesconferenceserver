@@ -126,7 +126,7 @@ export const refreshHandler = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   3️⃣ LOGOUT
+    3️⃣ LOGOUT
 ===================================== */
 export const logout = async (req: Request, res: Response) => {
   try {
@@ -142,39 +142,62 @@ export const logout = async (req: Request, res: Response) => {
        await User.findByIdAndUpdate(userId, { currentSessionId: null });
     }
 
-    res.clearCookie("accessToken", { path: "/" });
-    res.clearCookie("refreshToken", { path: "/api/v1/auth/refresh" });
+    const isProduction = process.env.NODE_ENV === "production";
+    
+    // Standardized cookie options to ensure deletion works
+    const cookieOptions = {
+      path: "/", // CRITICAL: Must match the path used in sendTokens
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
 
     return res.status(200).json({
       success: true,
       message: "Logged out successfully",
     });
   } catch (error) {
-    return res.sendStatus(500);
+    console.error("Logout Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
 /* =====================================
-   4️⃣ LOGOUT ALL (Force global reset)
+    4️⃣ LOGOUT ALL (Force global reset)
 ===================================== */
 export const logoutAll = async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  try {
+    const userId = (req as any).user?.id;
 
-  if (!userId) {
-    return res.status(401).json({ success: false, message: "Unauthorized" });
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    // 1. Delete all refresh tokens from DB store
+    await deleteUserTokens(userId);
+
+    // 2. Clear currentSessionId in User model to kick everyone out
+    await User.findByIdAndUpdate(userId, { currentSessionId: null });
+
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieOptions = {
+      path: "/",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out from all devices",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
-
-  // 1. Delete all refresh tokens from DB store
-  await deleteUserTokens(userId);
-
-  // 2. Clear currentSessionId in User model to kick everyone out
-  await User.findByIdAndUpdate(userId, { currentSessionId: null });
-
-  res.clearCookie("accessToken", { path: "/" });
-  res.clearCookie("refreshToken", { path: "/api/v1/auth/refresh" });
-
-  return res.status(200).json({
-    success: true,
-    message: "Logged out from all devices",
-  });
 };

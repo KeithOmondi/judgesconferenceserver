@@ -14,36 +14,38 @@ import eventsRoutes from "./routes/eventRoutes";
 import swearingPreferenceRoutes from "./routes/swearingPreferenceRoutes";
 import gallaryRoutes from "./routes/gallery.routes";
 import { env } from "./config/env";
-import { protect } from "./middlewares/authMiddleware"; // Ensure this is imported
+import { protect } from "./middlewares/authMiddleware";
 
 const app: Application = express();
 
 /**
  * 1. PROXY CONFIGURATION
+ * Crucial for receiving cookies over HTTPS when deployed on platforms like Render/Vercel.
  */
 if (env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
 
 /**
- * 2. UPDATED CORS CONFIGURATION
- * This allows both your Web Frontend and your Mobile App (which often has no origin header)
+ * 2. CORS CONFIGURATION
+ * Optimized for cross-origin cookie support.
  */
+const allowedOrigins = [env.FRONTEND_URL];
+
 const corsOptions = {
   origin: (origin: string | undefined, callback: any) => {
     // Allow requests with no origin (Mobile apps, Postman) 
-    // or requests matching your FRONTEND_URL
-    if (!origin || origin === env.FRONTEND_URL || env.NODE_ENV === "development") {
+    // or requests matching allowed list/development mode
+    if (!origin || allowedOrigins.includes(origin) || env.NODE_ENV === "development") {
       callback(null, true);
     } else {
-      console.log("❌ Blocked by CORS:", origin);
+      console.error("❌ Blocked by CORS:", origin);
       callback(new Error("Not allowed by CORS"));
     }
   },
-  credentials: true,
+  credentials: true, // Required for the browser to send cookies
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  // Added 'Cookie' to allowed headers for mobile session persistence
-  allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
 };
 
 app.use(cors(corsOptions));
@@ -66,12 +68,14 @@ app.get("/health", (req: Request, res: Response) => {
  * 4. API ROUTES
  */
 
-// --- ADDED: THE "ME" ROUTE ---
-// This is critical for the Redux checkAuth thunk
+/* --- THE "ME" ROUTE ---
+  Used by your Redux 'refreshUser' or a separate 'checkAuth' thunk.
+  This confirms if the browser's cookies are still valid.
+*/
 app.get("/api/v1/auth/me", protect, (req: any, res: Response) => {
   res.status(200).json({
     success: true,
-    user: req.user, // Ensure 'protect' middleware attaches user to req
+    user: req.user, 
   });
 });
 
