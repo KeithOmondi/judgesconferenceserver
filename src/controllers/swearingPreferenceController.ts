@@ -1,19 +1,22 @@
 import { Request, Response } from "express";
 import cloudinary, { uploadToCloudinary } from "../config/cloudinary";
-import CourtInformation from "../models/SwearingPreference"
+import CourtInformation from "../models/SwearingPreference";
 
 export const getCourtInfo = async (req: Request, res: Response) => {
   try {
     const info = await CourtInformation.findOne().lean();
     if (!info) {
-      return res.status(200).json({ judges: [], presentations: [], program: { items: [], scheduledRelease: null } });
+      return res.status(200).json({ 
+        judges: [], 
+        presentations: [], 
+        program: { items: [], scheduledRelease: null } 
+      });
     }
 
-    // NEW: Check if the requester is an admin
-    // This assumes your auth middleware attaches user info to 'req.user'
+    // Auth check (assuming middleware handles req.user)
     const isAdmin = (req as any).user?.role === 'admin';
 
-    // Time Restriction Logic: ONLY apply if NOT an admin
+    // Time Restriction Logic: Hide program details if before release time
     if (!isAdmin && info.program?.scheduledRelease && new Date() < new Date(info.program.scheduledRelease)) {
       return res.status(200).json({
         ...info,
@@ -26,7 +29,6 @@ export const getCourtInfo = async (req: Request, res: Response) => {
       });
     }
 
-    // Admin or Public (after release time) gets the full data
     res.status(200).json(info);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -38,11 +40,9 @@ export const updateProgram = async (req: Request, res: Response) => {
     const { scheduledFor, items } = req.body;
     const updateData: any = {};
 
-    // Handle Metadata
     if (scheduledFor) updateData["program.scheduledRelease"] = new Date(scheduledFor);
     if (items) updateData["program.items"] = JSON.parse(items);
 
-    // Handle File Upload
     if (req.file) {
       const result = await uploadToCloudinary(req.file, "judiciary/programs");
       updateData["program.programFileUrl"] = result.secure_url;
@@ -68,9 +68,12 @@ export const addJudgeBio = async (req: Request, res: Response) => {
     const result = await uploadToCloudinary(req.file, "judiciary/bios");
 
     const judgeData = {
-      ...req.body,
+      name: req.body.name,
+      title: req.body.title,
+      description: req.body.description, // Aligned with Schema
       imageUrl: result.secure_url,
       imagePublicId: result.public_id,
+      resourceType: result.resource_type || "image"
     };
 
     const info = await CourtInformation.findOneAndUpdate(
@@ -109,7 +112,6 @@ export const addPresentation = async (req: Request, res: Response) => {
 };
 
 export const deleteItem = async (req: Request, res: Response) => {
-  // 1. Cast 'type' to string to resolve ts(2538)
   const type = req.params.type as string; 
   const id = req.params.id as string;
 
@@ -117,22 +119,16 @@ export const deleteItem = async (req: Request, res: Response) => {
     const info = await CourtInformation.findOne();
     if (!info) return res.status(404).json({ message: "Record not found" });
 
-    // 2. Optional: Add a guard to ensure 'type' is a valid array on your model
     const allowedTypes = ["judges", "presentations"];
     if (!allowedTypes.includes(type)) {
       return res.status(400).json({ message: "Invalid category type" });
     }
 
-    // Accessing with (info as any)[type] is now safe from the index error
     const targetArray = (info as any)[type];
-    
-    if (!targetArray || typeof targetArray.id !== 'function') {
-      return res.status(400).json({ message: "Invalid operation on this type" });
-    }
-
     const item = targetArray.id(id);
     
     if (item) {
+      // Handles both 'imagePublicId' for judges and 'publicId' for presentations
       const pId = item.imagePublicId || item.publicId;
       const rType = item.resourceType || "image"; 
       if (pId) {
@@ -152,36 +148,29 @@ export const deleteItem = async (req: Request, res: Response) => {
 export const updateJudgeBio = async (req: Request, res: Response) => {
   try {
     const { judgeId } = req.params;
-    const { name, title, bio } = req.body;
+    const { name, title, description } = req.body; // Aligned with Schema
     
-    // 1. Find the document and the specific judge first
     const info = await CourtInformation.findOne({ "judges._id": judgeId });
     if (!info) return res.status(404).json({ message: "Judge not found" });
 
-    const judgeIndex = info.judges.findIndex((j: any) => j._id.toString() === judgeId);
-    const existingJudge = info.judges[judgeIndex];
-
+    const existingJudge = (info.judges as any).id(judgeId);
     const updateData: any = {};
 
-    // 2. Handle Text Fields (Updates only if provided)
     if (name) updateData["judges.$.name"] = name;
     if (title) updateData["judges.$.title"] = title;
-    if (bio) updateData["judges.$.bio"] = bio;
+    if (description) updateData["judges.$.description"] = description;
 
-    // 3. Handle Image Update (If a new file is uploaded)
     if (req.file) {
-      // Delete old image from Cloudinary if it exists
+      // Cleanup old image
       if (existingJudge.imagePublicId) {
         await cloudinary.uploader.destroy(existingJudge.imagePublicId);
       }
 
-      // Upload new image
       const result = await uploadToCloudinary(req.file, "judiciary/bios");
       updateData["judges.$.imageUrl"] = result.secure_url;
       updateData["judges.$.imagePublicId"] = result.public_id;
     }
 
-    // 4. Perform the update using the positional operator $
     const updatedInfo = await CourtInformation.findOneAndUpdate(
       { "judges._id": judgeId },
       { $set: updateData },
