@@ -7,35 +7,52 @@ import {
 } from "../controllers/auth.controller";
 
 import {
-   authorize,
   protect,
-  protectResetOnly,
 } from "../middlewares/authMiddleware";
 
 const router = Router();
 
-/* ==============================
+/* =====================================
    1️⃣ Public Routes
-============================== */
+   These do not require any tokens.
+===================================== */
+
+// standard PJ-based login (Generates new Session ID)
 router.post("/login", login);
+
+// Refresh logic (Checks if Session ID is still valid in DB)
 router.post("/refresh", refreshHandler);
 
-// Used when admin sends one-time login link
-//router.post("/temp-login", tempLogin);
 
-/* ==============================
-   2️⃣ Reset-Only Route (Scoped Token Required)
-============================== */
+/* =====================================
+   2️⃣ Protected Routes
+   Requires a valid Access Token + Matching Session ID
+===================================== */
 
-/* ==============================
-   3️⃣ Protected Routes
-============================== */
-router.post("/logout", protect, authorize("admin", "judge" ), logout);
-router.post("/logout-all", protect, authorize("admin", "judge" ), logoutAll);
+// Logout from the current device only
+router.post("/logout", protect, logout);
 
-/* ==============================
-   4️⃣ Admin Routes
-============================== */
-//router.post("/promote", protect, authorize("admin"),sendOneTimeLoginLink);
+// Logout from all devices (Clears all tokens & resets Session ID)
+router.post("/logout-all", protect, logoutAll);
+
+
+/* =====================================
+   3️⃣ Admin & Staff Routes
+   Requires specific roles + Active Session
+===================================== */
+
+/**
+ * Example of how to protect a route for specific roles 
+ * while maintaining the single-device restriction:
+ * * router.get("/admin-stats", protect, authorize("admin"), getStats);
+ */
+
+/* =====================================
+   4️⃣ Reset-Only Routes
+   (Used for forced password resets/one-time links)
+===================================== */
+
+// router.post("/reset-password", protectResetOnly, resetPasswordController);
+
 
 export default router;

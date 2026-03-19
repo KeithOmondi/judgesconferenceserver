@@ -1,4 +1,3 @@
-// src/controllers/auth.controller.ts
 import { Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { User } from "../models/user.model";
@@ -12,74 +11,58 @@ import {
 } from "../models/refreshToken.store";
 
 /* =====================================
-   1️⃣ LOGIN (PJ-only)
+   1️⃣ LOGIN (PJ-only with Session Lock)
 ===================================== */
 export const login = async (req: Request, res: Response) => {
   try {
     const { pj } = req.body;
 
-    console.log("🚀 [LOGIN] Incoming request:", { pj });
-
-    /* =========================
-       1️⃣ Validate Input
-    ========================= */
+    // 1. Validate Input
     if (!pj) {
-      console.warn("⚠️ [LOGIN] Missing PJ number");
       return res.status(400).json({
         success: false,
         message: "PJ number is required",
       });
     }
 
-    /* =========================
-       2️⃣ Find User
-    ========================= */
-    const user = await User.findOne({ pj }).select("+loginAttempts +lockUntil");
+    // 2. Find User with security fields
+    const user = await User.findOne({ pj }).select("+loginAttempts +lockUntil +currentSessionId");
 
     if (!user) {
-      console.warn(`❌ [LOGIN] User not found | PJ: ${pj}`);
       return res.status(401).json({
         success: false,
         message: "Invalid PJ number",
       });
     }
 
-    /* =========================
-       3️⃣ Account Status Checks
-    ========================= */
+    // 3. Account Status Checks
     if (!user.isActive) {
-      console.warn(`🚫 [LOGIN] Inactive account | PJ: ${pj}`);
       return res.status(403).json({
         success: false,
         message: "This account is inactive",
       });
     }
 
-    if (user.isLocked && user.isLocked()) {
-      console.warn(`🔒 [LOGIN] Account locked | PJ: ${pj}`);
+    if (user.isLocked()) {
       return res.status(423).json({
         success: false,
         message: "Account temporarily locked",
       });
     }
 
-    /* =========================
-       4️⃣ Reset Lock Counters
-    ========================= */
-    user.loginAttempts = 0;
-    user.lockUntil = undefined;
-    await user.save();
+    /* 🔐 SESSION ROTATION & LAST LOGIN
+       This generates a new unique ID and updates user.lastLogin.
+       Any previous device holding an old ID will now be rejected.
+    */
+    const newSessionId = await user.generateNewSession();
 
-    console.log(`✅ [LOGIN] Success | PJ: ${pj} | Name: ${user.name}`);
+    console.log(`✅ [LOGIN] PJ: ${pj} | New Session: ${newSessionId}`);
 
-    /* =========================
-       5️⃣ Send Auth Tokens
-    ========================= */
+    // 4. Send Auth Tokens (Passes user object containing currentSessionId)
     return sendTokens(res, user);
 
   } catch (error: any) {
     console.error("🔥 [LOGIN] Server error:", error.message);
-
     return res.status(500).json({
       success: false,
       message: "Server error during login",
@@ -88,7 +71,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 /* =====================================
-   2️⃣ REFRESH TOKEN (Rotation)
+   2️⃣ REFRESH TOKEN (With Session Check)
 ===================================== */
 export const refreshHandler = async (req: Request, res: Response) => {
   const refreshToken = req.cookies.refreshToken;
@@ -96,27 +79,46 @@ export const refreshHandler = async (req: Request, res: Response) => {
   if (!refreshToken) return res.sendStatus(401);
 
   try {
+    // Verify token and extract sessionId
     const decoded = jwt.verify(
       refreshToken,
       env.JWT_REFRESH_SECRET as string
-    ) as JwtPayload;
+    ) as JwtPayload & { sessionId: string };
 
     const tokenHash = hashToken(refreshToken);
     const storedToken = await findRefreshToken(tokenHash);
 
+    // If token isn't in DB (reused/logged out), clear all cookies
     if (!storedToken) {
       res.clearCookie("accessToken");
       res.clearCookie("refreshToken");
       return res.sendStatus(403);
     }
 
+    // Rotate the refresh token (delete old one)
     await deleteRefreshToken(tokenHash);
 
-    const user = await User.findById(decoded.id);
+    // Get fresh user data from DB
+    const user = await User.findById(decoded.id).select("+currentSessionId +isActive");
     if (!user || !user.isActive) return res.sendStatus(404);
 
-    sendTokens(res, user);
-  } catch {
+    /* 🔐 SESSION VALIDATION
+       If the sessionId in the Refresh Token doesn't match the DB,
+       it means a newer login occurred on another device.
+    */
+    if (user.currentSessionId && decoded.sessionId !== user.currentSessionId) {
+       res.clearCookie("accessToken");
+       res.clearCookie("refreshToken");
+       return res.status(401).json({ 
+         success: false, 
+         message: "Session expired: Logged in on another device" 
+       });
+    }
+
+    // Success: Issue new tokens using the same sessionId
+    return sendTokens(res, user);
+    
+  } catch (error) {
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
     return res.sendStatus(403);
@@ -127,35 +129,49 @@ export const refreshHandler = async (req: Request, res: Response) => {
    3️⃣ LOGOUT
 ===================================== */
 export const logout = async (req: Request, res: Response) => {
-  const refreshToken = req.cookies.refreshToken;
+  try {
+    const refreshToken = req.cookies.refreshToken;
 
-  if (refreshToken) {
-    await deleteRefreshToken(hashToken(refreshToken));
+    if (refreshToken) {
+      await deleteRefreshToken(hashToken(refreshToken));
+    }
+
+    // Clear session ID from DB so the user is truly "logged out"
+    const userId = (req as any).user?.id;
+    if (userId) {
+       await User.findByIdAndUpdate(userId, { currentSessionId: null });
+    }
+
+    res.clearCookie("accessToken", { path: "/" });
+    res.clearCookie("refreshToken", { path: "/api/v1/auth/refresh" });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    return res.sendStatus(500);
   }
-
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
-
-  return res.status(200).json({
-    success: true,
-    message: "Logged out successfully",
-  });
 };
 
 /* =====================================
-   4️⃣ LOGOUT ALL
+   4️⃣ LOGOUT ALL (Force global reset)
 ===================================== */
 export const logoutAll = async (req: Request, res: Response) => {
-  const userId = req.user?.id;
+  const userId = (req as any).user?.id;
 
   if (!userId) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
+  // 1. Delete all refresh tokens from DB store
   await deleteUserTokens(userId);
 
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  // 2. Clear currentSessionId in User model to kick everyone out
+  await User.findByIdAndUpdate(userId, { currentSessionId: null });
+
+  res.clearCookie("accessToken", { path: "/" });
+  res.clearCookie("refreshToken", { path: "/api/v1/auth/refresh" });
 
   return res.status(200).json({
     success: true,
