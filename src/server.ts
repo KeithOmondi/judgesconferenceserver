@@ -27,7 +27,7 @@ const startServer = async () => {
       console.log("-----------------------------------------");
       console.log(`🚀 Server running on port: ${PORT}`);
       console.log(`🌐 Local:   http://localhost:${PORT}`);
-      console.log(`📱 Mobile:  http://192.168.137.76:8000:${PORT}`); // Use your specific IP here
+      console.log(`📱 Mobile:  http://10.54.106.247:8000:${PORT}`); // Use your specific IP here
       console.log(`🛠️  Env:     ${env.NODE_ENV}`);
       console.log("-----------------------------------------");
     });

@@ -40,4 +40,8 @@ router.delete(
   CourtController.deleteItem,
 );
 
+// Example Route
+router.patch("/judge/:judgeId", protect,
+  authorize("admin"), upload.single("image"), CourtController.updateJudgeBio);
+
 export default router;

@@ -9,8 +9,12 @@ export const getCourtInfo = async (req: Request, res: Response) => {
       return res.status(200).json({ judges: [], presentations: [], program: { items: [], scheduledRelease: null } });
     }
 
-    // Time Restriction Logic
-    if (info.program?.scheduledRelease && new Date() < new Date(info.program.scheduledRelease)) {
+    // NEW: Check if the requester is an admin
+    // This assumes your auth middleware attaches user info to 'req.user'
+    const isAdmin = (req as any).user?.role === 'admin';
+
+    // Time Restriction Logic: ONLY apply if NOT an admin
+    if (!isAdmin && info.program?.scheduledRelease && new Date() < new Date(info.program.scheduledRelease)) {
       return res.status(200).json({
         ...info,
         program: {
@@ -21,6 +25,8 @@ export const getCourtInfo = async (req: Request, res: Response) => {
         }
       });
     }
+
+    // Admin or Public (after release time) gets the full data
     res.status(200).json(info);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -138,6 +144,51 @@ export const deleteItem = async (req: Request, res: Response) => {
     await info.save();
     
     res.status(200).json(info);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateJudgeBio = async (req: Request, res: Response) => {
+  try {
+    const { judgeId } = req.params;
+    const { name, title, bio } = req.body;
+    
+    // 1. Find the document and the specific judge first
+    const info = await CourtInformation.findOne({ "judges._id": judgeId });
+    if (!info) return res.status(404).json({ message: "Judge not found" });
+
+    const judgeIndex = info.judges.findIndex((j: any) => j._id.toString() === judgeId);
+    const existingJudge = info.judges[judgeIndex];
+
+    const updateData: any = {};
+
+    // 2. Handle Text Fields (Updates only if provided)
+    if (name) updateData["judges.$.name"] = name;
+    if (title) updateData["judges.$.title"] = title;
+    if (bio) updateData["judges.$.bio"] = bio;
+
+    // 3. Handle Image Update (If a new file is uploaded)
+    if (req.file) {
+      // Delete old image from Cloudinary if it exists
+      if (existingJudge.imagePublicId) {
+        await cloudinary.uploader.destroy(existingJudge.imagePublicId);
+      }
+
+      // Upload new image
+      const result = await uploadToCloudinary(req.file, "judiciary/bios");
+      updateData["judges.$.imageUrl"] = result.secure_url;
+      updateData["judges.$.imagePublicId"] = result.public_id;
+    }
+
+    // 4. Perform the update using the positional operator $
+    const updatedInfo = await CourtInformation.findOneAndUpdate(
+      { "judges._id": judgeId },
+      { $set: updateData },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Judge bio updated", data: updatedInfo });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
