@@ -33,7 +33,7 @@ const seedProgram = async () => {
             { time: "8.00-8.30AM", activity: "Registration of participants", facilitator: "Secretariat" },
             { time: "8.30-9.00AM", activity: "National Anthem, EAC Anthem, Prayer", facilitator: "Session chair, Justice James Wakiaga" },
             { time: "9.00-10.30AM", activity: "Remarks from Chairperson FIDA-Kenya, Principal Judge, and DG KJA", facilitator: "Ms. Christine Kungu, Mr Justice Eric Ogola, Justice (Dr.) Smokin Wanjala" },
-            { time: "10.30-11.00AM", activity: "Key note address and official opening", facilitator: "Lady Justice Philomena Mbete Mwilu" },
+            { time: "10.30-11.00AM", activity: "Key note address and official opening by the chief guest Lady Justice Philomena Mbete Mwilu, EGH. Deputy Chief Justice and Vice President of the Supreme Court of Kenya", facilitator: "Lady Justice Philomena Mbete Mwilu" },
             { time: "11.00-11.30AM", activity: "PHOTO SESSION AND HEALTH BREAK" },
             { time: "11.30-12.30PM", activity: "The Legal Framework for the Protection of Women and Children", facilitator: "Ms. Leah Kiguatha" },
             { time: "2.00-3.30 PM", activity: "Panel discussion: Advancing Child Protection", facilitator: "Lady Justice Teresia Matheka, Lady Justice Constance Mocumie, Justice Hilary Chemitei, Dr. Florence Mueni, Ms. Jedidah Waruhiu SC, Ms. Judy Oduor" },
