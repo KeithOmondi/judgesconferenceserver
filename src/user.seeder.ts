@@ -764,10 +764,10 @@ const seedUsers = async () => {
     isVerified: true
   },
   {
-    name: "Office of the Registrar High Court",
-    email: "registrarhighcourt2015@gmail.com",
+    name: "Dancan Okello",
+    email: "okello.dancan@gmail.com",
     password: "Registrar@2026",
-    pj: "12345",
+    pj: "61975",
     role: "judge",
     isVerified: true
   }
