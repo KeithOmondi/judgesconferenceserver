@@ -12,6 +12,7 @@ import guestsRoutes from "./routes/judgeGuestRoutes";
 import noticeRoutes from "./routes/noticeRoutes";
 import eventsRoutes from "./routes/eventRoutes";
 import swearingPreferenceRoutes from "./routes/swearingPreferenceRoutes";
+import programRoutes from "./routes/program.routes"
 import gallaryRoutes from "./routes/gallery.routes";
 import { env } from "./config/env";
 import { protect } from "./middlewares/authMiddleware";
@@ -89,6 +90,7 @@ app.use("/api/v1/notices", noticeRoutes);
 app.use("/api/v1/events", eventsRoutes);
 app.use("/api/v1/oath/court-info", swearingPreferenceRoutes);
 app.use("/api/v1/gallery", gallaryRoutes);
+app.use("/api/v1/program", programRoutes);
 
 /**
  * 5. ERROR HANDLING
