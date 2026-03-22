@@ -54,8 +54,8 @@ const userSchema = new Schema<IUser>(
   {
     pj: { type: String, required: true, unique: true, trim: true, index: true },
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 100 },
-    email: { type: String, required: false, lowercase: true, trim: true, index: true },
-    password: { type: String, required: false, minlength: 5, select: false },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    password: { type: String, required: true, minlength: 5, select: false },
     role: { type: String, enum: ["admin", "judge", "guest"], default: "guest", index: true },
     cohort: { type: Number, index: true, min: 2000, max: 2100 },
     isVerified: { type: Boolean, default: false },

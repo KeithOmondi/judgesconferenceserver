@@ -85,12 +85,12 @@ export const getUserById = async (req: Request, res: Response) => {
 ===================================== */
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, pj, role, cohort } = req.body;
+    const { name, pj, email, password, role, cohort } = req.body;
 
-    if (!name || !pj) {
+    if (!name || !pj || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Name and PJ Number required",
+        message: "Name, PJ Number, Email, and Password are required",
       });
     }
 
@@ -101,17 +101,22 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const existingUser = await User.findOne({ pj });
+    const existingUser = await User.findOne({ 
+      $or: [{ pj: pj.trim() }, { email: email.toLowerCase().trim() }] 
+    });
 
     if (existingUser) {
+      const field = existingUser.pj === pj.trim() ? "PJ Number" : "Email";
       return res.status(400).json({
         success: false,
-        message: "PJ Number already in use",
+        message: `${field} already in use in the registry`,
       });
     }
 
     const newUser = await User.create({
       name,
+      email: email.toLowerCase().trim(),
+      password, 
       pj: pj.trim(),
       role,
       cohort: cohort ? Number(cohort) : undefined,
@@ -119,7 +124,9 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       loginAttempts: 0,
     });
 
-    const { password, ...userObject } = newUser.toObject();
+    // 5. STRIP PASSWORD USING DESTRUCTURING
+    // This bypasses the TS delete error by creating a new object without the password field
+    const { password: _, ...userObject } = newUser.toObject();
 
     return res.status(201).json({
       success: true,
@@ -128,7 +135,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to create user",
+      message: err.message || "Failed to create user record",
     });
   }
 };
