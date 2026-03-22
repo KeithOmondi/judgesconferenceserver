@@ -17,7 +17,6 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { pj } = req.body;
 
-    // 1. Validate Input
     if (!pj) {
       return res.status(400).json({
         success: false,
@@ -25,7 +24,6 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Find User with security fields
     const user = await User.findOne({ pj }).select("+loginAttempts +lockUntil +currentSessionId");
 
     if (!user) {
@@ -35,7 +33,6 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // 3. Account Status Checks
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
@@ -50,15 +47,9 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    /* 🔐 SESSION ROTATION & LAST LOGIN
-       This generates a new unique ID and updates user.lastLogin.
-       Any previous device holding an old ID will now be rejected.
-    */
     const newSessionId = await user.generateNewSession();
-
     console.log(`✅ [LOGIN] PJ: ${pj} | New Session: ${newSessionId}`);
 
-    // 4. Send Auth Tokens (Passes user object containing currentSessionId)
     return sendTokens(res, user);
 
   } catch (error: any) {
@@ -78,8 +69,18 @@ export const refreshHandler = async (req: Request, res: Response) => {
 
   if (!refreshToken) return res.sendStatus(401);
 
+  const isProduction = env.NODE_ENV === "production";
+
+  // 👇 shared cookie options used for clearing
+  const clearOptions = {
+    path: "/",
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    partitioned: isProduction, // 👈 added
+  }
+
   try {
-    // Verify token and extract sessionId
     const decoded = jwt.verify(
       refreshToken,
       env.JWT_REFRESH_SECRET as string
@@ -88,39 +89,31 @@ export const refreshHandler = async (req: Request, res: Response) => {
     const tokenHash = hashToken(refreshToken);
     const storedToken = await findRefreshToken(tokenHash);
 
-    // If token isn't in DB (reused/logged out), clear all cookies
     if (!storedToken) {
-      res.clearCookie("accessToken");
-      res.clearCookie("refreshToken");
+      res.clearCookie("accessToken", clearOptions) // 👈 updated
+      res.clearCookie("refreshToken", clearOptions) // 👈 updated
       return res.sendStatus(403);
     }
 
-    // Rotate the refresh token (delete old one)
     await deleteRefreshToken(tokenHash);
 
-    // Get fresh user data from DB
     const user = await User.findById(decoded.id).select("+currentSessionId +isActive");
     if (!user || !user.isActive) return res.sendStatus(404);
 
-    /* 🔐 SESSION VALIDATION
-       If the sessionId in the Refresh Token doesn't match the DB,
-       it means a newer login occurred on another device.
-    */
     if (user.currentSessionId && decoded.sessionId !== user.currentSessionId) {
-       res.clearCookie("accessToken");
-       res.clearCookie("refreshToken");
-       return res.status(401).json({ 
-         success: false, 
-         message: "Session expired: Logged in on another device" 
-       });
+      res.clearCookie("accessToken", clearOptions) // 👈 updated
+      res.clearCookie("refreshToken", clearOptions) // 👈 updated
+      return res.status(401).json({ 
+        success: false, 
+        message: "Session expired: Logged in on another device" 
+      });
     }
 
-    // Success: Issue new tokens using the same sessionId
     return sendTokens(res, user);
     
   } catch (error) {
-    res.clearCookie("accessToken");
-    res.clearCookie("refreshToken");
+    res.clearCookie("accessToken", clearOptions) // 👈 updated
+    res.clearCookie("refreshToken", clearOptions) // 👈 updated
     return res.sendStatus(403);
   }
 };
@@ -136,20 +129,19 @@ export const logout = async (req: Request, res: Response) => {
       await deleteRefreshToken(hashToken(refreshToken));
     }
 
-    // Clear session ID from DB so the user is truly "logged out"
     const userId = (req as any).user?.id;
     if (userId) {
-       await User.findByIdAndUpdate(userId, { currentSessionId: null });
+      await User.findByIdAndUpdate(userId, { currentSessionId: null });
     }
 
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production"; // 👈 using env instead of process.env
     
-    // Standardized cookie options to ensure deletion works
     const cookieOptions = {
-      path: "/", // CRITICAL: Must match the path used in sendTokens
+      path: "/",
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      partitioned: isProduction, // 👈 added
     };
 
     res.clearCookie("accessToken", cookieOptions);
@@ -176,18 +168,16 @@ export const logoutAll = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // 1. Delete all refresh tokens from DB store
     await deleteUserTokens(userId);
-
-    // 2. Clear currentSessionId in User model to kick everyone out
     await User.findByIdAndUpdate(userId, { currentSessionId: null });
 
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production"; // 👈 using env instead of process.env
     const cookieOptions = {
       path: "/",
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      partitioned: isProduction, // 👈 added
     };
 
     res.clearCookie("accessToken", cookieOptions);
