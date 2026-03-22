@@ -15,6 +15,7 @@ import swearingPreferenceRoutes from "./routes/swearingPreferenceRoutes";
 import programRoutes from "./routes/program.routes"
 import gallaryRoutes from "./routes/gallery.routes";
 import presentationRoutes from "./routes/presentation.routes"
+import notificationRoutes from "./routes/notificationRoutes"
 import { env } from "./config/env";
 import { protect } from "./middlewares/authMiddleware";
 
@@ -93,6 +94,7 @@ app.use("/api/v1/oath/court-info", swearingPreferenceRoutes);
 app.use("/api/v1/gallery", gallaryRoutes);
 app.use("/api/v1/program", programRoutes);
 app.use("/api/v1/presentations", presentationRoutes);
+app.use('/api/v1/notifications', notificationRoutes)
 
 /**
  * 5. ERROR HANDLING

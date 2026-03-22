@@ -66,6 +66,11 @@ export const env = {
       ? requiredEnv("VAPID_PRIVATE_KEY")
       : process.env.VAPID_PRIVATE_KEY || "web_push",
 
+      VAPID_EMAIL:
+  process.env.NODE_ENV === "production"
+    ? requiredEnv("VAPID_EMAIL")
+    : process.env.VAPID_EMAIL || "mailto:dev@example.com",
+
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
 };
