@@ -204,3 +204,26 @@ export const getPublicNotices = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Add this to your noticeController.ts
+export const getPublicNoticeById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // We find by ID and ensure it's actually active/published
+    const notice = await Notice.findOne({ _id: id, isActive: true })
+      .populate("createdBy", "name");
+
+    if (!notice) {
+      return res.status(404).json({ message: "Notice not found or has been archived" });
+    }
+
+    // Increment view count automatically when opened
+    notice.stats.views += 1;
+    await notice.save();
+
+    res.status(200).json(notice);
+  } catch (error) {
+    res.status(500).json({ message: "Error retrieving notice details" });
+  }
+};
