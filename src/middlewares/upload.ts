@@ -15,20 +15,23 @@ export const upload = multer({
     cb: FileFilterCallback,
   ) => {
     const allowedTypes = [
-      // Images
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      // Documents
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      // Videos
-      "video/mp4",
-      "video/mpeg",
-      "video/quicktime", // .mov
-      "video/webm",
-    ];
+  // Images
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  // Documents
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // Presentations  ← NEW
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+  "application/vnd.ms-powerpoint", // .ppt
+  // Videos
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+  "video/webm",
+];
 
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);

@@ -52,8 +52,12 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json()); 
-app.use(express.urlencoded({ extended: true }));
+/**
+ * CRITICAL FIX FOR 500 ERRORS ON LARGE UPLOADS
+ * Increase the limits for built-in parsers 
+ */
+app.use(express.json({ limit: "60mb" })); 
+app.use(express.urlencoded({ limit: "60mb", extended: true }));
 app.use(cookieParser());
 
 /**

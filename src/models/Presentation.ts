@@ -4,8 +4,9 @@ export interface IPresentation extends Document {
   title: string;
   description?: string;
   fileUrl: string;
+  downloadUrl: string;   // ← added
   publicId: string;
-  fileType: "image" | "video" | "raw"; // Cloudinary types
+  fileType: "image" | "video" | "raw";
   mimeType: string;
   fileName: string;
   fileSize: number;
@@ -17,14 +18,23 @@ const presentationSchema = new Schema<IPresentation>(
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     fileUrl: { type: String, required: true },
+    downloadUrl: { type: String, required: true },  // ← added
     publicId: { type: String, required: true },
-    fileType: { type: String, required: true },
+    fileType: {
+      type: String,
+      required: true,
+      enum: ["image", "video", "raw"],
+    },
     mimeType: { type: String, required: true },
     fileName: { type: String, required: true },
-    // Changed from String to Number to match your interface
-    fileSize: { type: Number, required: true }, 
+    fileSize: { type: Number, required: true },
   },
   { timestamps: true }
 );
 
-export const Presentation = model<IPresentation>("Presentation", presentationSchema);
+presentationSchema.index({ publicId: 1 });
+
+export const Presentation = model<IPresentation>(
+  "Presentation",
+  presentationSchema
+);

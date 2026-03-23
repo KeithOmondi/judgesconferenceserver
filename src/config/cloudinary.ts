@@ -1,4 +1,3 @@
-/// <reference types="multer" />
 import { v2 as cloudinary, UploadApiResponse, UploadApiOptions } from "cloudinary";
 import { env } from "./env";
 import { Readable } from "stream";
@@ -13,28 +12,40 @@ cloudinary.config({
 export const uploadToCloudinary = (
   file: Express.Multer.File,
   folder: string,
-): Promise<UploadApiResponse> => {
+): Promise<UploadApiResponse & { download_url: string }> => {
   return new Promise((resolve, reject) => {
     const isVideo = file.mimetype.startsWith("video");
+    const isDocument = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.ms-powerpoint",
+    ].includes(file.mimetype);
 
     const options: UploadApiOptions = {
-      folder: folder,
-      resource_type: "auto", // Automatically detects image vs video
+      folder,
+      resource_type: isDocument ? "raw" : isVideo ? "video" : "image",
+      use_filename: true,
+      unique_filename: true,
+      // ← Forces Cloudinary to store with the original filename + extension
+      // This is what prevents the 404 on .pptx/.pdf files
+      ...(isDocument && {
+        filename_override: file.originalname,
+      }),
     };
 
     if (isVideo) {
-      // VIDEO OPTIMIZATIONS
       options.transformation = [
-        { streaming_profile: "hd", format: "m3u8" }, // Prepare for HLS streaming
-        { quality: "auto" }
+        { streaming_profile: "hd", format: "m3u8" },
+        { quality: "auto" },
       ];
       options.eager = [
         { width: 720, height: 480, crop: "pad", video_codec: "h264" },
-        { format: "jpg", resource_type: "video", frames: 1 } // Generate a thumbnail
+        { format: "jpg", resource_type: "video", frames: 1 },
       ];
-      options.eager_async = true; // Process heavy video transcoding in background
-    } else {
-      // IMAGE OPTIMIZATIONS
+      options.eager_async = true;
+    } else if (!isDocument) {
       options.transformation = [
         { width: 1200, crop: "limit", quality: "auto", fetch_format: "auto" },
       ];
@@ -45,11 +56,21 @@ export const uploadToCloudinary = (
       (error, result) => {
         if (error) return reject(error);
         if (!result) return reject(new Error("Upload failed"));
-        resolve(result);
+
+        // Generate a secure download URL with the attachment flag
+        // Only needed for documents — videos/images are streamed directly
+        const download_url = isDocument
+          ? cloudinary.url(result.public_id, {
+              resource_type: result.resource_type,
+              flags: "attachment",
+              secure: true,
+            })
+          : result.secure_url;
+
+        resolve({ ...result, download_url });
       },
     );
 
-    // Handle stream errors to prevent server crashes
     const stream = Readable.from(file.buffer);
     stream.on("error", (err) => reject(err));
     stream.pipe(uploadStream);
