@@ -36,7 +36,11 @@ export const protect = async (
   next: NextFunction,
 ) => {
   try {
-    const token = (req as any).cookies?.accessToken;
+    // 👇 check Authorization header first, then cookie (fixes Safari ITP)
+    const token =
+      req.headers.authorization?.startsWith("Bearer ")
+        ? req.headers.authorization.split(" ")[1]
+        : (req as any).cookies?.accessToken;
 
     if (!token) {
       return res.status(401).json({
@@ -50,7 +54,6 @@ export const protect = async (
       env.JWT_SECRET as string
     ) as TokenPayload;
 
-    // 🚫 Block reset-only tokens
     if (decoded.resetOnly) {
       return res.status(403).json({
         success: false,
@@ -58,10 +61,6 @@ export const protect = async (
       });
     }
 
-    /* ---------------------------------------------------------
-       🔐 SINGLE DEVICE CHECK
-       Compare JWT sessionId with the one in the Database
-    --------------------------------------------------------- */
     const user = await User.findById(decoded.id).select("+currentSessionId +isActive");
 
     if (!user || !user.isActive) {
@@ -71,7 +70,6 @@ export const protect = async (
       });
     }
 
-    // If the sessionId in the token doesn't match the DB, someone else logged in
     if (user.currentSessionId && decoded.sessionId !== user.currentSessionId) {
       return res.status(401).json({
         success: false,
