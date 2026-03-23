@@ -8,28 +8,33 @@ import { Program } from "../models/program.model";
  */
 export const getProgram = async (req: Request, res: Response) => {
   try {
-    const program = await Program.findOne().lean();
-    if (!program) return res.status(404).json({ message: "No program found" });
+    // Fetch the most recent program entry [cite: 20, 23, 44]
+    const program = await Program.findOne().sort({ createdAt: -1 }).lean();
+    
+    if (!program) {
+      return res.status(404).json({ message: "No program found" });
+    }
 
     const now = new Date();
     const releaseTime = new Date(program.scheduledRelease);
     
-    // SECURITY CHECK: If time hasn't passed or admin locked it manually
+    // SECURITY CHECK: If current time is before release or admin locked it manually
     const isLocked = now < releaseTime || program.isLocked === true;
 
     if (isLocked) {
-      // Strip sensitive schedule and file URL data
+      // Return metadata only to prevent frontend state injection of sensitive schedule
       return res.status(200).json({
         _id: program._id,
         event_title: program.event_title,
+        theme: program.theme, // Theme is public knowledge [cite: 5, 15]
         scheduledRelease: program.scheduledRelease,
         isLocked: true,
-        schedule: [], // Return empty to prevent frontend state injection
+        schedule: [], 
         programFileUrl: null
       });
     }
 
-    // Otherwise, return full program data
+    // Return full program data including all activities and session chairs [cite: 20, 39, 47, 53]
     res.status(200).json({ ...program, isLocked: false });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
@@ -43,6 +48,7 @@ export const getProgram = async (req: Request, res: Response) => {
  */
 export const getProgramForAdmin = async (req: Request, res: Response) => {
   try {
+    // Admins need the full document including timestamps and internal flags
     const program = await Program.findOne().sort({ updatedAt: -1 });
     res.status(200).json(program);
   } catch (error) {
@@ -50,40 +56,42 @@ export const getProgramForAdmin = async (req: Request, res: Response) => {
   }
 };
 
-/** @route POST /api/program/admin/create */
+/** * @route   POST /api/program/admin/create 
+ * @desc    Creates a new program entry with full schedule details
+ */
 export const createProgram = async (req: Request, res: Response) => {
   try {
+    // Ensure body contains required event_title, theme, and schedule [cite: 4, 5, 20]
     const newProgram = await Program.create(req.body);
     res.status(201).json(newProgram);
-  } catch (error) {
-    res.status(400).json({ message: "Invalid data", error });
+  } catch (error: any) {
+    res.status(400).json({ message: "Invalid data provided", error: error.message });
   }
 };
 
 /** * @route   PATCH /api/program/admin/update/:id 
- * @desc    Updates program text, schedule, and handles File Uploads
+ * @desc    Updates text, schedule (including session chairs), and handles file uploads
  */
 export const updateProgram = async (req: Request, res: Response) => {
   try {
     const updateData: any = { ...req.body };
 
-    // Handle File Upload (If your route uses Multer and req.file exists)
-    // Using a property check to ensure it aligns with your frontend key 'programFile'
+    // Handle File Upload logic (e.g., if using Multer)
     if (req.file) {
-      // Assuming you are using Cloudinary or a similar service
+      // Example for cloud storage or local path
       // updateData.programFileUrl = req.file.path; 
-      
-      // If using local storage/buffer:
-      // updateData.programFileUrl = `/uploads/${req.file.filename}`;
     }
 
+    // findByIdAndUpdate handles the $set for nested session_chairs and activities [cite: 20, 23, 44]
     const updated = await Program.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    if (!updated) return res.status(404).json({ message: "Program not found" });
+    if (!updated) {
+      return res.status(404).json({ message: "Program not found" });
+    }
     
     res.status(200).json(updated);
   } catch (error: any) {
@@ -91,10 +99,15 @@ export const updateProgram = async (req: Request, res: Response) => {
   }
 };
 
-/** @route DELETE /api/program/admin/delete/:id */
+/** * @route   DELETE /api/program/admin/delete/:id 
+ * @desc    Removes a program entry
+ */
 export const deleteProgram = async (req: Request, res: Response) => {
   try {
-    await Program.findByIdAndDelete(req.params.id);
+    const deleted = await Program.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Program not found" });
+    }
     res.status(200).json({ message: "Program deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Delete failed", error });
