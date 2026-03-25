@@ -125,23 +125,30 @@ export const logout = async (req: Request, res: Response) => {
   try {
     const refreshToken = req.cookies.refreshToken;
 
+    // 1. Revoke the Refresh Token in the DB
     if (refreshToken) {
       await deleteRefreshToken(hashToken(refreshToken));
     }
 
+    // 2. Invalidate the Session Lock
+    // Use req.user.id if available from your auth middleware
     const userId = (req as any).user?.id;
     if (userId) {
-      await User.findByIdAndUpdate(userId, { currentSessionId: null });
+      await User.findByIdAndUpdate(userId, { 
+        currentSessionId: null,
+        // Optional: clear any temp flags if needed
+      });
     }
 
-    const isProduction = env.NODE_ENV === "production"; // 👈 using env instead of process.env
+    const isProduction = env.NODE_ENV === "production";
     
+    // 3. Clear Cookies with exact matching attributes
     const cookieOptions = {
       path: "/",
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      partitioned: isProduction, // 👈 added
+      partitioned: isProduction,
     };
 
     res.clearCookie("accessToken", cookieOptions);
@@ -149,10 +156,10 @@ export const logout = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      message: "Logged out successfully",
+      message: "Session terminated and records cleared",
     });
   } catch (error) {
-    console.error("Logout Error:", error);
+    console.error("🔥 Logout Error:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
