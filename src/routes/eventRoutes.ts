@@ -9,6 +9,7 @@ import {
   getPublicEventById,
 } from "../controllers/eventController";
 import { protect, authorize } from "../middlewares/authMiddleware";
+import { upload } from "../middlewares/upload";
 
 const router = express.Router();
 
@@ -26,11 +27,29 @@ router.get("/get/:id", protect, getEventById);
    ADMIN ROUTES
 ================================ */
 
+/**
+ * NOTE: upload.single("image") makes the image optional. 
+ * If no file is attached to the "image" field in the request, 
+ * req.file will simply be undefined, and the controller handles it.
+ */
+
 // Create event
-router.post("/create", protect, authorize("admin"), createEvent);
+router.post(
+  "/create", 
+  protect, 
+  authorize("admin"), 
+  upload.single("image"), 
+  createEvent
+);
 
 // Update event
-router.put("/update/:id", protect, authorize("admin"), updateEvent);
+router.put(
+  "/update/:id", 
+  protect, 
+  authorize("admin"), 
+  upload.single("image"), 
+  updateEvent
+);
 
 // Delete event
 router.delete("/delete/:id", protect, authorize("admin"), deleteEvent);
@@ -38,7 +57,6 @@ router.delete("/delete/:id", protect, authorize("admin"), deleteEvent);
 /* ===============================
    GUEST / PUBLIC ROUTES
 ================================ */
-// Anyone can hit these
 router.get("/public", protect, authorize("guest"), getPublicEvents);
 router.get("/public/:id", protect, authorize("guest"), getPublicEventById);
 

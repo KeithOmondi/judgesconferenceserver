@@ -1,34 +1,35 @@
 import mongoose, { Schema, Document, Types, Model } from "mongoose";
 
 /* ================= FILTER TYPE ================= */
-
 export type EventFilter = "UPCOMING" | "PAST" | "RECENT" | "ALL";
 export type EventStatus = "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
 
 /* ================= EVENT INTERFACE ================= */
-
 export interface IEvent extends Document {
   title: string;
   description: string;
   location: string;
-  startDate: Date; // Replaces 'date' and 'time'
-  endDate: Date; // Replaces 'endTime'
+  startDate: Date;
+  endDate: Date;
   status: EventStatus;
   isMandatory: boolean;
   capacity?: number;
+  // New Optional Image Field
+  image?: {
+    url: string;
+    publicId: string;
+  };
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
 /* ================= MODEL INTERFACE ================= */
-
 interface IEventModel extends Model<IEvent> {
   getFilteredEvents(filter: EventFilter): Promise<IEvent[]>;
 }
 
 /* ================= SCHEMA ================= */
-
 const EventSchema: Schema<IEvent> = new Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -43,6 +44,11 @@ const EventSchema: Schema<IEvent> = new Schema(
     },
     isMandatory: { type: Boolean, default: false },
     capacity: { type: Number, default: null },
+    // Implementation of the optional image
+    image: {
+      url: { type: String },
+      publicId: { type: String },
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -57,7 +63,6 @@ const EventSchema: Schema<IEvent> = new Schema(
 );
 
 /* ================= STATIC FILTER METHOD ================= */
-
 EventSchema.statics.getFilteredEvents = async function (filter: EventFilter) {
   const now = new Date();
 
