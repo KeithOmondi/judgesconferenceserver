@@ -21,7 +21,6 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
       const result = await uploadToCloudinary(file, "gallery/uploads");
 
       // Generate a forced-download URL for images
-      // Videos use secure_url directly since they stream
       const downloadUrl =
         result.resource_type === "image"
           ? cloudinary.url(result.public_id, {
@@ -33,11 +32,12 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
 
       return Gallery.create({
         description,
-        url: result.secure_url,       // ← for display/streaming
-        downloadUrl,                   // ← for download button
+        url: result.secure_url,
+        downloadUrl,
         publicId: result.public_id,
         resourceType: result.resource_type,
         uploadedBy: req.user!.id,
+        downloadCount: 0, // Initialize tracker
       });
     });
 
@@ -49,6 +49,35 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
+  }
+};
+
+// -------------------- NEW: Gallery Download Tracker --------------------
+export const trackGalleryDownload = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const media = await Gallery.findByIdAndUpdate(
+      id,
+      { $inc: { downloadCount: 1 } },
+      { returnDocument: 'after' } // Fixes the Mongoose "new" deprecation warning
+    );
+
+    if (!media) {
+      return res.status(404).json({ message: "Media not found" });
+    }
+
+    // FALLBACK: If downloadUrl is missing, use the standard url
+    const targetUrl = media.downloadUrl || media.url;
+
+    if (!targetUrl) {
+      return res.status(400).json({ message: "No valid URL found for this asset" });
+    }
+
+    return res.redirect(targetUrl);
+  } catch (err: any) {
+    console.error("Download Tracking Error:", err);
+    return res.status(500).json({ message: "Tracking failed" });
   }
 };
 
@@ -112,5 +141,3 @@ export const deleteMedia = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: err.message });
   }
 };
-
-

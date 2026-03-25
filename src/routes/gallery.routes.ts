@@ -3,7 +3,8 @@ import {
   uploadMedia,
   getGallery,
   getGalleryAdmin,
-  deleteMedia
+  deleteMedia,
+  trackGalleryDownload // ← Added
 } from "../controllers/gallery.controller";
 import { authorize, protect } from "../middlewares/authMiddleware";
 import { upload } from "../middlewares/upload";
@@ -13,6 +14,10 @@ const router = Router();
 // -------------------- GALLERY FETCH --------------------
 // Protected access for all authorized users (Judges, Admins, etc.)
 router.get("/get", protect, getGallery);
+
+// -------------------- TRACKING --------------------
+// Public/Protected tracking route that increments count and redirects
+router.get("/download/:id", protect, trackGalleryDownload); // ← Added
 
 // -------------------- ADMIN MANAGEMENT --------------------
 

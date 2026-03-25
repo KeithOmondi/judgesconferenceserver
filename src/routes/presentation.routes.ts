@@ -2,7 +2,8 @@ import { Router } from "express";
 import { 
   createPresentation, 
   getAllPresentations, 
-  deletePresentation 
+  deletePresentation,
+  trackDownload // ← Added
 } from "../controllers/presentation.controller";
 import { upload } from "../middlewares/upload";
 
@@ -10,6 +11,9 @@ const router = Router();
 
 // Public: View materials
 router.get("/", getAllPresentations);
+
+// Public: Download & Track (Redirects to Cloudinary)
+router.get("/download/:id", trackDownload); // ← Added tracking route
 
 // Admin: Manage materials
 router.post("/upload", upload.single("file"), createPresentation);

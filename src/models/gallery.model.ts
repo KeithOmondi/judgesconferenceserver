@@ -3,11 +3,13 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IGallery extends Document {
   description?: string;
   url: string;
-  downloadUrl: string;        // ← added
+  downloadUrl: string;
   publicId: string;
   resourceType: "image" | "video";
   uploadedBy: mongoose.Types.ObjectId;
+  downloadCount: number; // ← Added for consistent tracking
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const GallerySchema = new Schema<IGallery>(
@@ -22,7 +24,7 @@ const GallerySchema = new Schema<IGallery>(
     },
     downloadUrl: {
       type: String,
-      required: true,         // ← added
+      required: true,
     },
     publicId: {
       type: String,
@@ -38,10 +40,16 @@ const GallerySchema = new Schema<IGallery>(
       ref: "User",
       required: true,
     },
+    downloadCount: {
+      type: Number,
+      default: 0, // ← Baseline for analytics
+    },
   },
   { timestamps: true }
 );
 
-GallerySchema.index({ publicId: 1 });   // ← added, consistent with Presentation
+// Indexing for rapid lookups and popularity sorting
+GallerySchema.index({ publicId: 1 });
+GallerySchema.index({ downloadCount: -1 });
 
 export const Gallery = mongoose.model<IGallery>("Gallery", GallerySchema);
