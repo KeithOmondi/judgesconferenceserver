@@ -20,3 +20,5 @@ src/seedCourts.ts
 
 # Ignore seedCourts scripts
 src/userSeeder.ts
+
+src/programSeeder.ts
