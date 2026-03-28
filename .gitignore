@@ -19,6 +19,6 @@ Thumbs.db
 src/seedCourts.ts
 
 # Ignore seedCourts scripts
-src/userSeeder.ts
+src/user.seeder.ts
 
 src/programSeeder.ts

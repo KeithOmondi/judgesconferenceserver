@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 import slugify from "slugify";
-import { nanoid } from "nanoid"; // Optional: npm install nanoid for unique slugs
+import { nanoid } from "nanoid";
 
 // ---------------- TYPES ----------------
 
@@ -11,6 +11,7 @@ interface IAttachment {
   fileUrl: string;
   fileName: string;
   fileSize?: number;
+  fileType: string; // Added: e.g., 'image/png', 'application/pdf'
 }
 
 interface IEventDetails {
@@ -85,6 +86,7 @@ const NoticeSchema: Schema<INotice> = new Schema(
         fileUrl: { type: String, required: true },
         fileName: { type: String, required: true },
         fileSize: { type: Number },
+        fileType: { type: String, required: true }, // Store MIME type for easier UI rendering
       },
     ],
     publishDate: {
@@ -123,18 +125,11 @@ const NoticeSchema: Schema<INotice> = new Schema(
   }
 );
 
-// ---------------- MIDDLEWARE (ASYNC) ----------------
+// ---------------- MIDDLEWARE ----------------
 
-/**
- * Modern Async Pre-Save Hook
- * Avoids next() by returning a Promise (implicitly via async)
- */
-NoticeSchema.pre("save", async function () {
-  // Only generate slug if title is modified or slug is missing
+NoticeSchema.pre("save", async function (this: INotice) {
   if (this.isModified("title") || !this.slug) {
     const baseSlug = slugify(this.title, { lower: true, strict: true });
-    
-    // Add a short unique ID to prevent collisions (e.g., "notice-title-xJ2k")
     this.slug = `${baseSlug}-${nanoid(4)}`;
   }
 });
@@ -143,6 +138,7 @@ NoticeSchema.pre("save", async function () {
 
 NoticeSchema.index({ title: "text", description: "text" });
 NoticeSchema.index({ priority: 1, publishDate: -1 });
+// The expiryDate index will automatically remove documents when current time > expiryDate
 NoticeSchema.index({ expiryDate: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<INotice>("Notice", NoticeSchema);

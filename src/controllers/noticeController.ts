@@ -21,25 +21,27 @@ export const createNotice = async (req: AuthRequest, res: Response) => {
 
     const attachments = [];
 
-    // Handle File Uploads
+    // Handle File Uploads (Supports PNG, JPG, WEBP, PDF)
     if (req.files && Array.isArray(req.files)) {
       for (const file of req.files) {
+        // Upload to Cloudinary folder 'notices'
         const upload = await uploadToCloudinary(file, "notices");
+        
         attachments.push({
           fileUrl: upload.secure_url,
           fileName: upload.original_filename || file.originalname,
           fileSize: file.size,
+          fileType: file.mimetype, // Storing the MIME type (e.g., image/png)
         });
       }
     }
 
-    // Safely parse eventDetails if it's sent as a string (common with FormData)
-    const parsedEvent =
-      typeof eventDetails === "string"
-        ? JSON.parse(eventDetails)
-        : eventDetails;
+    // Safely parse eventDetails if sent as a string (FormData behavior)
+    let parsedEvent;
+    if (eventDetails) {
+      parsedEvent = typeof eventDetails === "string" ? JSON.parse(eventDetails) : eventDetails;
+    }
 
-    // Create notice (Slug is handled by Mongoose pre-save hook now)
     const notice = new Notice({
       title,
       description,
@@ -53,7 +55,7 @@ export const createNotice = async (req: AuthRequest, res: Response) => {
 
     await notice.save();
 
-    // IMPORTANT: Populate before sending to Redux so UI doesn't "flicker" or show missing data
+    // Populate for immediate UI update
     const populatedNotice = await notice.populate("createdBy", "name");
 
     res.status(201).json(populatedNotice);
@@ -72,11 +74,7 @@ export const getNotices = async (req: AuthRequest, res: Response) => {
     const query: any = {};
 
     if (priority && priority !== "ALL") query.priority = priority;
-
-    if (search) {
-      // Use Mongo Text Index
-      query.$text = { $search: String(search) };
-    }
+    if (search) query.$text = { $search: String(search) };
 
     const notices = await Notice.find(query)
       .sort({ priority: -1, publishDate: -1 })
@@ -118,21 +116,18 @@ export const updateNotice = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const updateData = { ...req.body };
 
-    if (typeof updateData.eventDetails === "string") {
+    if (updateData.eventDetails && typeof updateData.eventDetails === "string") {
       updateData.eventDetails = JSON.parse(updateData.eventDetails);
     }
 
-    // findByIdAndUpdate doesn't trigger "save" hooks by default for slug generation
-    // unless you use "runValidators" or handle it manually.
-    // Best practice: find -> modify -> save
     const notice = await Notice.findById(id);
     if (!notice) return res.status(404).json({ message: "Notice not found" });
 
+    // Note: If updating files, you'd handle file logic here similarly to createNotice
     Object.assign(notice, updateData);
-    await notice.save(); // This triggers our modern async slug hook
+    await notice.save(); 
 
     const updatedNotice = await notice.populate("createdBy", "name");
-
     res.json(updatedNotice);
   } catch (error) {
     res.status(500).json({
@@ -150,9 +145,7 @@ export const deleteNotice = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: "Notice deleted successfully" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Delete failed", error: getErrorMessage(error) });
+    res.status(500).json({ message: "Delete failed", error: getErrorMessage(error) });
   }
 };
 
@@ -175,7 +168,7 @@ export const downloadNotice = async (req: Request, res: Response) => {
   }
 };
 
-// ----------------- 7. PUBLIC NOTICES -----------------
+// ----------------- 7. PUBLIC NOTICES & DETAILS -----------------
 export const getPublicNotices = async (req: Request, res: Response) => {
   try {
     const { priority } = req.query;
@@ -192,7 +185,7 @@ export const getPublicNotices = async (req: Request, res: Response) => {
 
     const notices = await Notice.find(query)
       .sort({ priority: -1, publishDate: -1 })
-      .populate("createdBy", "name") // Added for consistency
+      .populate("createdBy", "name")
       .select("-__v -updatedAt")
       .lean();
 
@@ -205,20 +198,17 @@ export const getPublicNotices = async (req: Request, res: Response) => {
   }
 };
 
-// Add this to your noticeController.ts
 export const getPublicNoticeById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    // We find by ID and ensure it's actually active/published
     const notice = await Notice.findOne({ _id: id, isActive: true })
       .populate("createdBy", "name");
 
     if (!notice) {
-      return res.status(404).json({ message: "Notice not found or has been archived" });
+      return res.status(404).json({ message: "Notice not found or archived" });
     }
 
-    // Increment view count automatically when opened
     notice.stats.views += 1;
     await notice.save();
 
