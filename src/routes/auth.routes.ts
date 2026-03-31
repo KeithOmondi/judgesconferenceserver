@@ -3,7 +3,9 @@ import {
   login,
   logout,
   refreshHandler,
-  setupPassword, // Import the new controller
+  setupPassword,
+  forgotPassword, // New controller
+  resetPassword,  // New controller
 } from "../controllers/auth.controller";
 import { protect } from "../middlewares/authMiddleware";
 
@@ -19,6 +21,12 @@ router.post("/login", login);
 
 // DR Password Setup: Used when login returns status 202
 router.patch("/setup-password", setupPassword);
+
+// 🛡️ Forgot Password: Initiates the reset email
+router.post("/forgot-password", forgotPassword);
+
+// 🛡️ Reset Password: Consumes the token from the URL
+router.patch("/reset-password/:token", resetPassword);
 
 // Refresh logic: Rotates tokens and checks session validity
 router.post("/refresh", refreshHandler);

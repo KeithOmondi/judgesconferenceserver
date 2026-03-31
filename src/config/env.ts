@@ -5,10 +5,9 @@ dotenv.config();
 
 /**
  * Helper to ensure a variable exists in process.env
- * Now only requires the KEY name as an argument.
  */
 const requiredEnv = (name: string): string => {
-  const value = process.env[name]; // Look up the value here
+  const value = process.env[name];
   if (!value) {
     throw new Error(`❌ Missing required environment variable: ${name}`);
   }
@@ -19,7 +18,6 @@ export const env = {
   PORT: process.env.PORT ? Number(process.env.PORT) : 8000,
   NODE_ENV: process.env.NODE_ENV || "production",
 
-  // 1 argument passed, 1 argument expected. Error solved!
   MONGO_URI: requiredEnv("MONGO_URI"),
   DB_NAME: process.env.DB_NAME || "judgesApp",
   FRONTEND_URL: requiredEnv("FRONTEND_URL"),
@@ -35,6 +33,7 @@ export const env = {
       ? requiredEnv("JWT_REFRESH_SECRET")
       : process.env.JWT_REFRESH_SECRET || "dev_refresh_secret",
 
+  // Cloudinary
   CLOUDINARY_CLOUD_NAME:
     process.env.NODE_ENV === "production"
       ? requiredEnv("CLOUDINARY_CLOUD_NAME")
@@ -50,27 +49,40 @@ export const env = {
       ? requiredEnv("CLOUDINARY_API_SECRET")
       : process.env.CLOUDINARY_API_SECRET || "dev_cloud_api",
 
-     //REDIS URL
-      REDIS_URL:
+  // Redis
+  REDIS_URL:
     process.env.NODE_ENV === "production"
       ? requiredEnv("REDIS_URL")
-      : process.env.REDIS_URL || "dev_redis_url", 
+      : process.env.REDIS_URL || "dev_redis_url",
 
-      VAPID_PUBLIC_KEY:
+  // VAPID Keys for Web Push
+  VAPID_PUBLIC_KEY:
     process.env.NODE_ENV === "production"
       ? requiredEnv("VAPID_PUBLIC_KEY")
-      : process.env.VAPID_PUBLIC_KEY|| "web_push",
-      
-      VAPID_PRIVATE_KEY:
+      : process.env.VAPID_PUBLIC_KEY || "web_push",
+
+  VAPID_PRIVATE_KEY:
     process.env.NODE_ENV === "production"
       ? requiredEnv("VAPID_PRIVATE_KEY")
       : process.env.VAPID_PRIVATE_KEY || "web_push",
 
-      VAPID_EMAIL:
-  process.env.NODE_ENV === "production"
-    ? requiredEnv("VAPID_EMAIL")
-    : process.env.VAPID_EMAIL || "mailto:dev@example.com",
+  VAPID_EMAIL:
+    process.env.NODE_ENV === "production"
+      ? requiredEnv("VAPID_EMAIL")
+      : process.env.VAPID_EMAIL || "mailto:dev@example.com",
 
+  /* ============================================================
+     BREVO / MAIL CONFIGURATION
+  ============================================================ */
+  BREVO_API_KEY:
+    process.env.NODE_ENV === "production"
+      ? requiredEnv("BREVO_API_KEY")
+      : process.env.BREVO_API_KEY || "dev_brevo_key",
+
+  MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL || "noreply@court.go.ke",
+  MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || "High Court Registry",
+
+  // Expirations
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
 };

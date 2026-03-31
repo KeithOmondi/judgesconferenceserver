@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto"; // Added for token generation
 
 /* ================================
   1️⃣ Types & Interfaces
@@ -32,6 +33,10 @@ export interface IUser extends Document {
   currentSessionId?: string;
   lastLogin?: Date;
 
+  // PASSWORD RESET FIELDS
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
+
   passwordChangedAt?: Date;
   loginAttempts: number;
   lockUntil?: Date;
@@ -41,6 +46,7 @@ export interface IUser extends Document {
   comparePassword(candidatePassword: string): Promise<boolean>;
   isLocked(): boolean;
   generateNewSession(): Promise<string>;
+  createPasswordResetToken(): string; // New method
 }
 
 interface IUserModel extends Model<IUser> {
@@ -55,14 +61,8 @@ const userSchema = new Schema<IUser>(
     pj: { type: String, required: true, unique: true, trim: true, index: true },
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 100 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    password: { type: String, required: true, minlength: 5, select: false },
+    password: { type: String, required: true, minlength: 10, select: false }, // Upped minlength to 10 for safety
 
-    /**
-     * Roles:
-     *  - "admin"  → Full system access; manages users, settings, and all data
-     *  - "judge"  → Can score/review assigned cases; limited write access
-     *  - "dr"     → Deputy Registrar; manages case records and submissions
-     */
     role: {
       type: String,
       enum: ["admin", "judge", "dr"],
@@ -74,7 +74,6 @@ const userSchema = new Schema<IUser>(
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true, index: true },
 
-    // Session restriction — only one active session per user
     currentSessionId: { type: String, default: null },
     lastLogin: { type: Date },
 
@@ -89,6 +88,9 @@ const userSchema = new Schema<IUser>(
         },
       },
     ],
+
+    passwordResetToken: String,
+    passwordResetExpires: Date,
 
     passwordChangedAt: Date,
     loginAttempts: { type: Number, default: 0 },
@@ -106,6 +108,7 @@ userSchema.pre<IUser>("save", async function () {
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
 
+  // If password was changed (and it's not a new user), update passwordChangedAt
   if (!this.isNew) {
     this.passwordChangedAt = new Date(Date.now() - 1000);
   }
@@ -128,10 +131,6 @@ userSchema.methods.isLocked = function (): boolean {
   return !!(this.lockUntil && this.lockUntil > new Date());
 };
 
-/**
- * Invalidates any previous session by rotating the session ID.
- * Call this inside your login controller after credential verification.
- */
 userSchema.methods.generateNewSession = async function (): Promise<string> {
   const newSessionId = uuidv4();
   this.currentSessionId = newSessionId;
@@ -140,6 +139,24 @@ userSchema.methods.generateNewSession = async function (): Promise<string> {
   this.lockUntil = undefined;
   await this.save();
   return newSessionId;
+};
+
+/**
+ * Creates a plain-text reset token, hashes it for storage, 
+ * and returns the plain-text version for email delivery.
+ */
+userSchema.methods.createPasswordResetToken = function (): string {
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  this.passwordResetToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // Expires in 10 minutes
+  this.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+  return resetToken;
 };
 
 /* ================================
@@ -152,7 +169,6 @@ userSchema.statics.failedLogin = async function (email: string) {
   user.loginAttempts += 1;
 
   if (user.loginAttempts >= 5) {
-    // Lock account for 30 minutes after 5 failed attempts
     user.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
   }
 

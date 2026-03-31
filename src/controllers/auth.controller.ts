@@ -8,6 +8,8 @@ import {
   deleteRefreshToken,
   findRefreshToken,
 } from "../models/refreshToken.store";
+import mailService, { sendPasswordResetMail } from "../utils/sendMail";
+import crypto from "crypto";
 
 /* --- Helper for Cookie Options (DRY) --- */
 const getCookieOptions = (isProduction: boolean) => ({
@@ -189,5 +191,87 @@ export const logout = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, message: "Logged out" });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: "Logout failed" });
+  }
+};
+
+/* =====================================
+    5️⃣ FORGOT PASSWORD (Request Link)
+===================================== */
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email is required" });
+
+    const user = await User.findOne({ email }).select("+isActive");
+
+    if (!user || !user.isActive) {
+      return res.status(200).json({ 
+        success: true, 
+        message: "If an account exists with this email, a reset link has been sent." 
+      });
+    }
+
+    const resetToken = user.createPasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    try {
+      // 2. Updated this call to use mailService
+      await mailService.sendPasswordResetMail(user.email, resetUrl, user.name);
+
+      return res.status(200).json({ 
+        success: true, 
+        message: "Secure reset link has been sent to your email." 
+      });
+    } catch (mailError: any) {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      return res.status(500).json({ success: false, message: "Failed to send reset email." });
+    }
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+/* =====================================
+    6️⃣ RESET PASSWORD (Update Password)
+===================================== */
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const token = req.params.token as string;
+    const { password } = req.body;
+
+    if (!token || !password || password.length < 10) {
+      return res.status(400).json({ success: false, message: "Invalid request or weak password." });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).select("+password +isActive");
+
+    if (!user || !user.isActive) {
+      return res.status(400).json({ success: false, message: "Link expired or invalid." });
+    }
+
+    // 3. IMPORTANT: Update and SAVE to trigger .pre('save') hashing
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    
+    // generateNewSession() should include a user.save() call internally.
+    // If it doesn't, ensure you call await user.save() here.
+    await user.generateNewSession(); 
+
+    return res.status(200).json({ 
+      success: true, 
+      message: "Password reset successfully. You may now login." 
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
