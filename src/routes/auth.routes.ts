@@ -4,11 +4,9 @@ import {
   logout,
   logoutAll,
   refreshHandler,
+  setupPassword, // Import the new controller
 } from "../controllers/auth.controller";
-
-import {
-  protect,
-} from "../middlewares/authMiddleware";
+import { protect } from "../middlewares/authMiddleware";
 
 const router = Router();
 
@@ -17,10 +15,13 @@ const router = Router();
    These do not require any tokens.
 ===================================== */
 
-// standard PJ-based login (Generates new Session ID)
+// Hybrid Login: PJ (Judge/Admin) or Email/Pass (DR)
 router.post("/login", login);
 
-// Refresh logic (Checks if Session ID is still valid in DB)
+// DR Password Setup: Used when login returns status 202
+router.patch("/setup-password", setupPassword);
+
+// Refresh logic: Rotates tokens and checks session validity
 router.post("/refresh", refreshHandler);
 
 
@@ -32,27 +33,7 @@ router.post("/refresh", refreshHandler);
 // Logout from the current device only
 router.post("/logout", protect, logout);
 
-// Logout from all devices (Clears all tokens & resets Session ID)
+// Logout from all devices (Global Reset)
 router.post("/logout-all", protect, logoutAll);
-
-
-/* =====================================
-   3️⃣ Admin & Staff Routes
-   Requires specific roles + Active Session
-===================================== */
-
-/**
- * Example of how to protect a route for specific roles 
- * while maintaining the single-device restriction:
- * * router.get("/admin-stats", protect, authorize("admin"), getStats);
- */
-
-/* =====================================
-   4️⃣ Reset-Only Routes
-   (Used for forced password resets/one-time links)
-===================================== */
-
-// router.post("/reset-password", protectResetOnly, resetPasswordController);
-
 
 export default router;

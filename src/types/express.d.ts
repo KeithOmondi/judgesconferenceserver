@@ -1,12 +1,13 @@
-import { UserRole } from "../middlewares/authMiddleware";
+import { UserRole } from "../models/user.model";
 
 declare global {
   namespace Express {
     interface Request {
       user?: {
         id: string;
-        role?: UserRole;     // 🔹 optional now
-        resetOnly?: boolean; // 🔹 added for reset tokens
+        role: UserRole;
+        resetOnly?: boolean;
+        sessionId?: string;
       };
     }
   }

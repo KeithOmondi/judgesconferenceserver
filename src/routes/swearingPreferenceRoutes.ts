@@ -5,43 +5,67 @@ import * as CourtController from "../controllers/swearingPreferenceController";
 
 const router = Router();
 
-router.get("/", CourtController.getCourtInfo);
+/**
+ * ==========================================
+ * PUBLIC / AUTHENTICATED ROUTES
+ * ==========================================
+ */
 
+// Handles role-based filtering (Judge vs DR vs All)
+router.get(
+  "/", 
+  protect, 
+  authorize("dr", "judge", "admin"), 
+  CourtController.getCourtInfo
+);
+
+/**
+ * ==========================================
+ * ADMIN ONLY ROUTES
+ * ==========================================
+ */
+
+// 1. Admin Dashboard Overview (Optimized/Lean)
+router.get(
+  "/admin/dashboard",
+  protect,
+  authorize("admin"),
+  CourtController.getCourtInformation
+);
+
+// 2. Add New Entries
 router.post(
   "/bios",
   protect,
   authorize("admin"),
-  upload.single("image"),
-  CourtController.addJudgeBio,
+  upload.single("image"), // Controller expects req.file
+  CourtController.addJudgeBio
 );
 
 router.post(
   "/presentations",
   protect,
   authorize("admin"),
-  upload.single("file"),
-  CourtController.addPresentation,
+  upload.single("file"), // Controller expects req.file
+  CourtController.addPresentation
 );
 
-// FIXED: Middleware added to handle multipart/form-data
-router.put(
-  "/program",
+// 3. Update Existing Entries
+router.patch(
+  "/judge/:judgeId", 
   protect,
-  authorize("admin"),
-  upload.single("file"),
-  CourtController.updateProgram,
+  authorize("admin"), 
+  upload.single("image"), // Optional image replacement
+  CourtController.updateJudgeBio
 );
 
-// Use simpler delete route; controller handles the Cloudinary lookup
+// 4. Delete Entries
+// Route: /api/court/judges/:id OR /api/court/presentations/:id
 router.delete(
   "/:type/:id",
   protect,
   authorize("admin"),
-  CourtController.deleteItem,
+  CourtController.deleteItem
 );
-
-// Example Route
-router.patch("/judge/:judgeId", protect,
-  authorize("admin"), upload.single("image"), CourtController.updateJudgeBio);
 
 export default router;

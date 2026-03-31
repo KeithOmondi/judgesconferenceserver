@@ -5,13 +5,25 @@ import { nanoid } from "nanoid";
 // ---------------- TYPES ----------------
 
 export type NoticePriority = "NORMAL" | "URGENT";
-export type TargetAudience = "ALL" | "JUDGES" | "REGISTRY" | "GUESTS";
+
+/**
+ * Who this notice is targeted at:
+ *  - "ALL"    → Both judges and DRs see it
+ *  - "JUDGES" → Only users with role "judge" can see it
+ *  - "DR"     → Only users with role "dr" (Deputy Registrar) can see it
+ *
+ * Access rule enforced in noticeController.getNotices():
+ *   judge → query { targetAudience: { $in: ["JUDGES", "ALL"] } }
+ *   dr    → query { targetAudience: { $in: ["DR", "ALL"] } }
+ *   admin → no filter (sees everything)
+ */
+export type TargetAudience = "ALL" | "JUDGES" | "DR";
 
 interface IAttachment {
   fileUrl: string;
   fileName: string;
   fileSize?: number;
-  fileType: string; // Added: e.g., 'image/png', 'application/pdf'
+  fileType: string;
 }
 
 interface IEventDetails {
@@ -69,11 +81,14 @@ const NoticeSchema: Schema<INotice> = new Schema(
       enum: ["NORMAL", "URGENT"],
       default: "NORMAL",
     },
+
+    // ✅ Updated: removed "REGISTRY" and "GUESTS", added "DR"
     targetAudience: {
       type: String,
-      enum: ["ALL", "JUDGES", "REGISTRY", "GUESTS"],
+      enum: ["ALL", "JUDGES", "DR"],
       default: "ALL",
     },
+
     eventDetails: {
       startDate: { type: Date },
       endDate: { type: Date },
@@ -86,7 +101,7 @@ const NoticeSchema: Schema<INotice> = new Schema(
         fileUrl: { type: String, required: true },
         fileName: { type: String, required: true },
         fileSize: { type: Number },
-        fileType: { type: String, required: true }, // Store MIME type for easier UI rendering
+        fileType: { type: String, required: true },
       },
     ],
     publishDate: {
@@ -138,7 +153,11 @@ NoticeSchema.pre("save", async function (this: INotice) {
 
 NoticeSchema.index({ title: "text", description: "text" });
 NoticeSchema.index({ priority: 1, publishDate: -1 });
-// The expiryDate index will automatically remove documents when current time > expiryDate
+
+// Compound index — the most common query: role-scoped active notices
+NoticeSchema.index({ targetAudience: 1, isActive: 1, publishDate: -1 });
+
+// Auto-delete expired notices
 NoticeSchema.index({ expiryDate: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model<INotice>("Notice", NoticeSchema);

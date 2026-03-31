@@ -1,16 +1,20 @@
 import { Schema, model, Document } from "mongoose";
 
+export const PRESENTATION_ROLES = ["judge", "dr", "admin", "all"] as const;
+export type PresentationRole = (typeof PRESENTATION_ROLES)[number];
+
 export interface IPresentation extends Document {
   title: string;
   description?: string;
   fileUrl: string;
-  downloadUrl: string;   // URL used for the tracking redirect/proxy
+  downloadUrl: string;
   publicId: string;
   fileType: "image" | "video" | "raw";
   mimeType: string;
   fileName: string;
   fileSize: number;
-  downloadCount: number; // Field to track total downloads
+  downloadCount: number;
+  targetAudience: PresentationRole[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,15 +63,20 @@ const presentationSchema = new Schema<IPresentation>(
       type: Number, 
       default: 0 
     },
+    targetAudience: {
+      type: [String],
+      enum: PRESENTATION_ROLES,
+      default: [],              // empty = visible to all via null-safe filter
+    },
   },
   { 
     timestamps: true 
   }
 );
 
-// Indexing for faster retrieval by ID and sorting by popularity/date
 presentationSchema.index({ publicId: 1 });
 presentationSchema.index({ downloadCount: -1 });
+presentationSchema.index({ targetAudience: 1 });
 
 export const Presentation = model<IPresentation>(
   "Presentation",

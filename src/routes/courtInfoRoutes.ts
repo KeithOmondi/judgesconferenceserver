@@ -4,68 +4,76 @@ import {
   createDivision,
   updateDivision,
   deleteDivision,
+  getFAQs,
   createFAQ,
   updateFAQ,
   deleteFAQ,
+  getContacts,
   createContact,
   updateContact,
   deleteContact,
-  getPublicCourtInfo,
-  getPublicDivisions,
-  getPublicFAQs,
-  getPublicContacts,
 } from "../controllers/courtInfoController";
 import { authorize, protect } from "../middlewares/authMiddleware";
 import { upload } from "../middlewares/upload";
 
 const router = express.Router();
 
-// ----------------- PUBLIC / USER -----------------
-router.get("/get", getCourtInfo);
+/* =====================================================
+    SHARED ROUTES (DRs & JUDGES)
+    The controller filters content based on user role.
+===================================================== */
 
-// ----------------- ADMIN ONLY -----------------
+// Get all court data (Divisions, FAQs, Contacts) in one call
+router.get("/all", protect, getCourtInfo);
+
+// Individual collection fetches
+router.get("/faqs", protect, getFAQs);
+router.get("/contacts", protect, getContacts);
+
+
+/* =====================================================
+    ADMIN ONLY ROUTES (CRUD Operations)
+===================================================== */
 
 /**
  * DIVISIONS
- * Use upload.single("file") to handle multipart/form-data.
- * This allows uploading one video/image/document per request
- * alongside the 'name' and 'body' text fields.
+ * Handles multipart/form-data for media uploads.
  */
 router.post(
   "/divisions",
   protect,
   authorize("admin"),
-  upload.single("file"), // Middleware to intercept the file
-  createDivision,
+  upload.single("file"), 
+  createDivision
 );
 
 router.put(
   "/divisions/:id",
   protect,
   authorize("admin"),
-  upload.single("file"), // Allows adding new files during updates
-  updateDivision,
+  upload.single("file"),
+  updateDivision
 );
 
-router.delete("/divisions/:id", protect, authorize("admin"), deleteDivision);
+router.delete(
+  "/divisions/:id", 
+  protect, 
+  authorize("admin"), 
+  deleteDivision
+);
 
-// ----------------- FAQS & CONTACTS -----------------
-// These remain text-only (JSON), so no multer is needed.
-
+/**
+ * FAQS
+ */
 router.post("/faqs", protect, authorize("admin"), createFAQ);
 router.put("/faqs/:id", protect, authorize("admin"), updateFAQ);
 router.delete("/faqs/:id", protect, authorize("admin"), deleteFAQ);
 
+/**
+ * CONTACTS
+ */
 router.post("/contacts", protect, authorize("admin"), createContact);
 router.put("/contacts/:id", protect, authorize("admin"), updateContact);
 router.delete("/contacts/:id", protect, authorize("admin"), deleteContact);
-
-//GUEST ROUTES
-/* Public Read Only */
-router.get("/court-info", getPublicCourtInfo);
-
-router.get("/divisions", protect, authorize("guest"), getPublicDivisions);
-router.get("/faqs", protect, authorize("guest"), getPublicFAQs);
-router.get("/contacts", protect, authorize("guest"), getPublicContacts);
 
 export default router;

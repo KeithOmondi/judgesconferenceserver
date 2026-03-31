@@ -14,26 +14,20 @@ import { upload } from "../middlewares/upload";
 const router = express.Router();
 
 /* ===============================
-   AUTHENTICATED USERS
+   AUTHENTICATED USERS (Judges, DR, Admin)
 ================================ */
 
-// Get all events (supports filter ?type=DEADLINE)
+// Get scoped events based on user role (filter handled in controller)
 router.get("/get", protect, getEvents);
 
-// Get single event
+// Get single event with audience verification
 router.get("/get/:id", protect, getEventById);
 
 /* ===============================
-   ADMIN ROUTES
+   ADMIN ONLY: MANAGEMENT
 ================================ */
 
-/**
- * NOTE: upload.single("image") makes the image optional. 
- * If no file is attached to the "image" field in the request, 
- * req.file will simply be undefined, and the controller handles it.
- */
-
-// Create event
+// Create event with optional image
 router.post(
   "/create", 
   protect, 
@@ -42,7 +36,7 @@ router.post(
   createEvent
 );
 
-// Update event
+// Update event with optional image
 router.put(
   "/update/:id", 
   protect, 
@@ -51,13 +45,17 @@ router.put(
   updateEvent
 );
 
-// Delete event
+// Delete event from registry
 router.delete("/delete/:id", protect, authorize("admin"), deleteEvent);
 
 /* ===============================
-   GUEST / PUBLIC ROUTES
+   PUBLIC / UNPROTECTED ROUTES
+   (If "guest" is removed, these should allow anyone or specific roles)
 ================================ */
-router.get("/public", protect, authorize("guest"), getPublicEvents);
-router.get("/public/:id", protect, authorize("guest"), getPublicEventById);
+
+// Use this if you want judges/dr to see a "Public Calendar" 
+// without specific audience scoping logic applied.
+router.get("/public", protect, authorize("judge", "dr"), getPublicEvents);
+router.get("/public/:id", protect, authorize("judge", "dr"), getPublicEventById);
 
 export default router;

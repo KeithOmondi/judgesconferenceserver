@@ -1,17 +1,42 @@
-import { Response } from "express";
-import { Message } from "../models/message.model";
-import { Group } from "../models/group.model";
+import { Request, Response,  } from "express";
+import { Message, MessageAudience } from "../models/message.model";
+import { User, UserRole } from "../models/user.model";
 import mongoose from "mongoose";
 import { getIO } from "../socket";
 import { isUserOnline } from "../socket/presence";
 import { sendWebPush } from "../services/push.service";
-import { User } from "../models/user.model";
 import { uploadToCloudinary } from "../config/cloudinary";
-import { AuthRequest } from "../middlewares/authMiddleware";
+import { Group } from "../models/group.model";
 
-/**
- * Helper: Cloudinary Upload
- */
+/* ================================
+    AuthRequest (fixed)
+    — Defined here from the shape
+      set by protect() in auth.middleware.ts
+================================ */
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    role: UserRole;
+    resetOnly?: boolean;
+    sessionId?: string;
+  };
+}
+
+/* ================================
+    Helper: Resolve Broadcast Audience Filter
+    Maps a token role → MessageAudience values
+    the user is permitted to see.
+================================ */
+const resolveAudienceFilter = (role: string): MessageAudience[] => {
+  const upper = role.toUpperCase();
+  if (upper === "JUDGE") return ["JUDGES", "ALL"];
+  if (upper === "DR") return ["DR", "ALL"];
+  return ["JUDGES", "DR", "ALL"]; // admin sees everything
+};
+
+/* ================================
+    Helper: Cloudinary Upload
+================================ */
 const uploadImage = async (file: Express.Multer.File): Promise<string> => {
   try {
     const result = await uploadToCloudinary(file, "messages");
@@ -23,12 +48,12 @@ const uploadImage = async (file: Express.Multer.File): Promise<string> => {
 };
 
 /* ============================================================
-    CORE MESSAGE ACTIONS (JUDGE/GUEST READ-ONLY POLICY)
+    CORE MESSAGE ACTIONS
 ============================================================ */
 
 /**
- * Send Message: Only Admins can call this now.
- * Judges/Guests are read-only.
+ * sendMessage — Admin only.
+ * Handles: broadcasts (with audience), group messages, direct messages.
  */
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   const session = await mongoose.startSession();
@@ -36,33 +61,37 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
   try {
     const senderId = req.user!.id;
-    const senderRole = req.user!.role;
-    let { receiver, group, text, isBroadcast } = req.body;
+    const senderRole = req.user!.role; // "admin" | "judge" | "dr"
 
-    // POLICY: ONLY ADMINS SEND MESSAGES
     if (senderRole !== "admin") {
-      return res.status(403).json({ message: "Read-only access: You cannot send messages." });
+      return res.status(403).json({
+        success: false,
+        message: "Read-only access: Admins only.",
+      });
     }
 
+    const { receiver, group, text, isBroadcast, audience } = req.body;
     const isTrueBroadcast = isBroadcast === "true" || isBroadcast === true;
 
     let imageUrl: string | undefined;
-    if (req.file) imageUrl = await uploadImage(req.file as Express.Multer.File);
+    if (req.file) imageUrl = await uploadImage(req.file);
 
     const [newMessage] = await Message.create(
       [
         {
           sender: senderId,
           receiver: isTrueBroadcast ? undefined : receiver,
-          group,
+          group: isTrueBroadcast ? undefined : group,
           text,
           imageUrl,
           isBroadcast: isTrueBroadcast,
-          senderType: senderRole,
-          readBy: [senderId], // Sender has obviously read it
+          // Model requires audience when isBroadcast; default to "ALL"
+          audience: isTrueBroadcast ? ((audience as MessageAudience) ?? "ALL") : undefined,
+          senderType: senderRole, // "admin" satisfies SenderType
+          readBy: [senderId],
         },
       ],
-      { session },
+      { session }
     );
 
     await session.commitTransaction();
@@ -73,50 +102,67 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       .lean();
 
     const io = getIO();
+
     if (isTrueBroadcast) {
+      // Emit to all; client-side audience filtering applies on receipt
       io.emit("message:broadcast", message);
     } else if (group) {
       io.to(group.toString()).emit("message:new", message);
     } else if (receiver) {
       io.to(receiver.toString()).emit("message:new", message);
       io.to(senderId).emit("message:new", message);
-      
+
       if (!isUserOnline(receiver)) {
-        sendWebPush(receiver, "New Judicial Briefing", text || "New document attached");
+        sendWebPush(
+          receiver,
+          "New Judicial Briefing",
+          text ?? "New document attached"
+        );
       }
     }
 
-    return res.status(201).json(message);
+    return res.status(201).json({ success: true, data: message });
   } catch (err: any) {
     if (session.inTransaction()) await session.abortTransaction();
-    return res.status(500).json({ message: err.message || "Failed to send message" });
+    return res.status(500).json({
+      success: false,
+      message: err.message ?? "Failed to send message",
+    });
   } finally {
     session.endSession();
   }
 };
 
 /**
- * Fetch Messages for Judges/Guests
+ * getMessages — Fetch messages for the current user.
+ * Broadcasts are filtered by audience based on the caller's role.
  */
 export const getMessages = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const userRole = req.user!.role; // original casing: "admin" | "judge" | "dr"
     const { receiver, isBroadcast } = req.query;
 
     const query: any = { isDeleted: false };
 
     if (isBroadcast === "true") {
       query.isBroadcast = true;
+
+      // Admins see all broadcasts; judges and DRs are scoped to their audience
+      if (userRole !== "admin") {
+        query.audience = { $in: resolveAudienceFilter(userRole) };
+      }
     } else {
       query.isBroadcast = { $ne: true };
-      // Judges only see messages where they are the receiver (since they can't send)
-      // Admins see the full thread
-      if (req.user!.role === "admin") {
+
+      if (userRole === "admin") {
+        // Admin sees the full DM thread with a given receiver
         query.$or = [
           { sender: userId, receiver: receiver },
           { sender: receiver, receiver: userId },
         ];
       } else {
+        // Judges and DRs only see messages addressed to them
         query.receiver = userId;
       }
     }
@@ -126,116 +172,148 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       .populate("sender", "name role")
       .lean();
 
-    return res.status(200).json(messages);
+    return res.status(200).json({ success: true, data: messages });
   } catch (err) {
-    return res.status(500).json({ message: "Fetch failed" });
+    return res.status(500).json({ success: false, message: "Fetch failed" });
   }
 };
 
 /**
- * Bulk Mark Thread as Read
- * Triggered when a Judge clicks a channel in the UI
+ * markThreadAsRead — Mark all messages in a thread/broadcast as read.
  */
 export const markThreadAsRead = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { channelId, type } = req.body; // type: 'broadcast' or 'private'
+    const userRole = req.user!.role;
+    const { type } = req.body; // "broadcast" | "private"
 
     const query: any = { readBy: { $ne: userId } };
-    
+
     if (type === "broadcast") {
       query.isBroadcast = true;
+
+      if (userRole !== "admin") {
+        query.audience = { $in: resolveAudienceFilter(userRole) };
+      }
     } else {
       query.receiver = userId;
-      // If we use virtual IDs like 'admin_private', we just mark all private messages for this user
+      query.isBroadcast = { $ne: true };
     }
 
     await Message.updateMany(query, { $addToSet: { readBy: userId } });
 
-    return res.status(200).json({ message: "Thread marked as read" });
+    return res.status(200).json({ success: true, message: "Thread marked as read" });
   } catch {
-    return res.status(500).json({ message: "Failed to mark thread as read" });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to mark thread as read",
+    });
   }
 };
 
-/* ============================================================
-    CHANNELS & GROUPS (FOR JUDGE DASHBOARD)
-============================================================ */
-
+/**
+ * getUserGroups — Returns virtual channels with unread counts.
+ * Unread broadcast counts respect audience scoping per role.
+ */
 export const getUserGroups = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const userRole = req.user!.role;
 
-    // Calculate unread counts for Broadcasts
-    const unreadBroadcasts = await Message.countDocuments({
+    // Broadcast unread count — scoped by role
+    const broadcastQuery: any = {
       isBroadcast: true,
-      readBy: { $ne: userId }
-    });
+      readBy: { $ne: userId },
+      isDeleted: false,
+    };
+    if (userRole !== "admin") {
+      broadcastQuery.audience = { $in: resolveAudienceFilter(userRole) };
+    }
 
-    // Calculate unread counts for Private messages
-    const unreadPrivate = await Message.countDocuments({
-      receiver: userId,
-      isBroadcast: { $ne: true },
-      readBy: { $ne: userId }
-    });
+    const [unreadBroadcasts, unreadPrivate] = await Promise.all([
+      Message.countDocuments(broadcastQuery),
+      Message.countDocuments({
+        receiver: userId,
+        isBroadcast: { $ne: true },
+        readBy: { $ne: userId },
+        isDeleted: false,
+      }),
+    ]);
 
     const virtualChannels = [
       {
         _id: "global_broadcast",
         name: "Official Announcements",
-        description: "Registry-wide broadcasts",
+        description: "Registry-wide circulars",
         type: "broadcast",
         isReadOnly: true,
-        unreadCount: unreadBroadcasts
+        unreadCount: unreadBroadcasts,
       },
       {
         _id: "admin_private",
         name: "Registry Admin",
-        description: "Direct correspondence from Registry",
+        description: "Direct correspondence",
         type: "private",
         isReadOnly: true,
-        unreadCount: unreadPrivate
+        unreadCount: unreadPrivate,
       },
     ];
 
-    return res.status(200).json(virtualChannels);
+    return res.status(200).json({ success: true, data: virtualChannels });
   } catch (err) {
-    return res.status(500).json({ message: "Failed to fetch channels" });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch channels",
+    });
   }
 };
 
 /* ============================================================
-    ADMIN SPECIFIC CONTROLLERS (FULL ACCESS)
+    ADMIN SPECIFIC
 ============================================================ */
 
+/**
+ * adminSendMessage — Admin-only. Three send modes:
+ *
+ *  1. Broadcast  → isBroadcast: true, audience: "JUDGES" | "DR" | "ALL"
+ *                  One message stored; audience field controls who sees it.
+ *                  Judges cannot see DR broadcasts and vice versa.
+ *
+ *  2. Multi-DM   → receivers: string[], targetRole: "judge" | "dr"
+ *                  Individual DM per recipient. targetRole is validated server-side —
+ *                  every ID in receivers must belong to that role. This prevents
+ *                  a judge's ID from ever appearing in a DR-targeted send.
+ *
+ *  3. Single DM  → receiver: string, targetRole: "judge" | "dr"
+ *                  Same role validation, single recipient.
+ *
+ * Read-isolation: judges and DRs each fetch only messages where receiver === their own ID,
+ * so cross-role DM leakage is impossible at the read layer too.
+ */
 export const adminSendMessage = async (req: AuthRequest, res: Response) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+
   try {
     const adminId = req.user!.id;
-    let { receivers, receiver, group, text, isBroadcast } = req.body;
+    const {
+      receivers,
+      receiver,
+      group,
+      text,
+      isBroadcast,
+      audience,
+      targetRole, // "judge" | "dr" — required for DM sends
+    } = req.body;
+
     const isTrueBroadcast = isBroadcast === true || isBroadcast === "true";
 
-    // --- 1. NORMALIZE TARGETS ---
+    // Normalise receiver list for DM paths
     let targetIds: string[] = [];
-    
-    if (Array.isArray(receivers)) {
-      // Handles multi-select arrays
-      targetIds = receivers;
-    } else if (typeof receivers === "string") {
-      // Handles single string sent to 'receivers' (fixes your current bug)
-      targetIds = [receivers];
-    } else if (receiver) {
-      // Handles single string sent to 'receiver'
-      targetIds = [receiver];
-    }
+    if (Array.isArray(receivers)) targetIds = receivers;
+    else if (typeof receivers === "string") targetIds = [receivers];
+    else if (receiver) targetIds = [receiver];
 
-    // Debugging the normalized result
-    console.log(`🎯 Routing message to ${targetIds.length} recipient(s). Broadcast: ${isTrueBroadcast}`);
-
-    // --- 2. EXECUTE ROUTING ---
-    
-    // IMAGE UPLOAD (Shared)
     let imageUrl: string | undefined;
     if (req.file) {
       const upload = await uploadToCloudinary(req.file, "messages");
@@ -244,209 +322,300 @@ export const adminSendMessage = async (req: AuthRequest, res: Response) => {
 
     const io = getIO();
 
-    // ROUTE A: BROADCAST (Requirement 2)
+    /* ── 1. Broadcast ─────────────────────────────────────────────────────
+       audience must be "JUDGES", "DR", or "ALL".
+       Stored as a single document; resolveAudienceFilter() on read enforces
+       that judges never see "DR" broadcasts and DRs never see "JUDGES" ones.
+    ────────────────────────────────────────────────────────────────────── */
     if (isTrueBroadcast) {
-      const [msg] = await Message.create([{
-        sender: adminId, text, imageUrl, senderType: "admin", isBroadcast: true, readBy: [adminId]
-      }], { session });
+      const resolvedAudience: MessageAudience =
+        (audience as MessageAudience) ?? "ALL";
+
+      const [msg] = await Message.create(
+        [
+          {
+            sender: adminId,
+            text,
+            imageUrl,
+            senderType: "admin",
+            isBroadcast: true,
+            audience: resolvedAudience,
+            readBy: [adminId],
+          },
+        ],
+        { session }
+      );
       await session.commitTransaction();
-      io.emit("message:broadcast", msg);
-      return res.status(201).json(msg);
+
+      const populated = await Message.findById(msg._id)
+        .populate("sender", "name role")
+        .lean();
+
+      io.emit("message:broadcast", populated);
+      return res.status(201).json({ success: true, data: populated });
     }
 
-    // ROUTE B: GROUP
+    /* ── 2. Group message ─────────────────────────────────────────────────
+       No role scoping needed — group membership controls access.
+    ────────────────────────────────────────────────────────────────────── */
     if (group) {
-      const [msg] = await Message.create([{
-        sender: adminId, group, text, imageUrl, senderType: "admin", readBy: [adminId]
-      }], { session });
+      const [msg] = await Message.create(
+        [
+          {
+            sender: adminId,
+            group,
+            text,
+            imageUrl,
+            senderType: "admin",
+            readBy: [adminId],
+          },
+        ],
+        { session }
+      );
       await session.commitTransaction();
-      io.to(group).emit("message:new", msg);
-      return res.status(201).json(msg);
+
+      const populated = await Message.findById(msg._id)
+        .populate("sender", "name role")
+        .lean();
+
+      io.to(group).emit("message:new", populated);
+      return res.status(201).json({ success: true, data: populated });
     }
 
-    // ROUTE C: SINGLE OR MULTIPLE JUDGES (Requirements 1 & 3)
+    /* ── 3. Direct message (single or multi-recipient) ────────────────────
+       targetRole is required. Every ID in targetIds is verified against the
+       User collection to confirm they all carry that role. Any mismatch
+       means the request is rejected in full — no partial sends.
+    ────────────────────────────────────────────────────────────────────── */
     if (targetIds.length > 0) {
-      const messages = targetIds.map(id => ({
-        sender: adminId, receiver: id, text, imageUrl, senderType: "admin", readBy: [adminId]
+      // targetRole is mandatory for DMs
+      if (!targetRole || !["judge", "dr"].includes(targetRole)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "targetRole is required for direct messages. Must be 'judge' or 'dr'.",
+        });
+      }
+
+      // Verify every selected recipient actually belongs to the declared role
+      const matchingUsers = await User.find({
+        _id: { $in: targetIds },
+        role: targetRole,
+        isActive: true,
+      }).select("_id").lean();
+
+      const validIds = new Set(matchingUsers.map((u) => u._id.toString()));
+      const invalidIds = targetIds.filter((id) => !validIds.has(id));
+
+      if (invalidIds.length > 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `The following recipient IDs do not belong to the '${targetRole}' role or are inactive: ${invalidIds.join(", ")}`,
+        });
+      }
+
+      // All recipients verified — create one DM document per recipient
+      const docs = targetIds.map((id) => ({
+        sender: adminId,
+        receiver: id,
+        text,
+        imageUrl,
+        senderType: "admin" as const,
+        readBy: [adminId],
       }));
-      
-      const created = await Message.insertMany(messages, { session });
+
+      const created = await Message.insertMany(docs, { session });
       await session.commitTransaction();
 
-      created.forEach(msg => {
+      // Notify each recipient via socket / push
+      created.forEach((msg) => {
         const rId = msg.receiver!.toString();
         io.to(rId).emit("message:new", msg);
         if (!isUserOnline(rId)) {
-          sendWebPush(rId, "New Registry Message", text || "New file received");
+          sendWebPush(rId, "New Registry Message", text ?? "New file received");
         }
       });
 
-      return res.status(201).json(created);
+      return res.status(201).json({ success: true, data: created });
     }
 
-    return res.status(400).json({ message: "No recipients selected" });
-
+    return res.status(400).json({
+      success: false,
+      message: "No recipients selected. Provide receiver, receivers[], or set isBroadcast.",
+    });
   } catch (err: any) {
     if (session.inTransaction()) await session.abortTransaction();
-    console.error("Error in adminSendMessage:", err);
-    return res.status(500).json({ message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   } finally {
     session.endSession();
   }
 };
 
-export const adminGetChatMessages = async (req: AuthRequest, res: Response) => {
-  try {
-    const { receiverId, groupId, isBroadcast, page = 1, limit = 50 } = req.query;
-    const query: any = { isDeleted: false };
-
-    if (isBroadcast === "true") query.isBroadcast = true;
-    else if (groupId) query.group = groupId;
-    else if (receiverId) {
-      query.$or = [{ sender: req.user!.id, receiver: receiverId }, { sender: receiverId, receiver: req.user!.id }];
-      query.isBroadcast = { $ne: true };
-    }
-
-    const messages = await Message.find(query)
-      .populate("sender receiver", "name role email")
-      .sort({ createdAt: 1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
-      .lean();
-
-    const total = await Message.countDocuments(query);
-    return res.status(200).json({ messages, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
-  } catch (err) {
-    return res.status(500).json({ message: "Admin fetch failed" });
-  }
-};
-
-/* ============================================================
-    LEGACY / UTILITY HELPERS (RETAINED)
-============================================================ */
-
+/**
+ * editMessage — Sender can edit their own message text.
+ */
 export const editMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
     const { text } = req.body;
-    const message = await Message.findOne({ _id: messageId, sender: req.user!.id });
-    if (!message) return res.status(404).json({ message: "Unauthorized" });
+
+    const message = await Message.findOne({
+      _id: messageId,
+      sender: req.user!.id,
+      isDeleted: false,
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found or you are not authorised to edit it",
+      });
+    }
 
     message.text = text;
     message.isEdited = true;
     await message.save();
 
-    const updated = await Message.findById(messageId).populate("sender", "name role");
+    const updated = await Message.findById(messageId)
+      .populate("sender", "name role")
+      .lean();
+
     getIO().emit("message:updated", updated);
-    return res.status(200).json(updated);
-  } catch { return res.status(500).json({ message: "Edit failed" }); }
+    return res.status(200).json({ success: true, data: updated });
+  } catch {
+    return res.status(500).json({ success: false, message: "Edit failed" });
+  }
 };
-
-export const deleteMessage = async (req: AuthRequest, res: Response) => {
-  try {
-    const msg = await Message.findOne({ _id: req.params.messageId, sender: req.user!.id });
-    if (!msg) return res.status(404).json({ message: "Denied" });
-    msg.isDeleted = true;
-    await msg.save();
-    getIO().emit("message:updated", msg);
-    return res.status(200).json({ message: "Deleted" });
-  } catch { return res.status(500).json({ message: "Delete failed" }); }
-};
-
-export const adminGetStats = async (req: AuthRequest, res: Response) => {
-  try {
-    const stats = await Message.aggregate([{ $group: { _id: "$senderType", count: { $sum: 1 } } }]);
-    return res.status(200).json({ total: await Message.countDocuments(), byRole: stats });
-  } catch { return res.status(500).json({ message: "Stats failed" }); }
-};
-
-/* =====================================================
-    GROUP MANAGEMENT (Admin Only)
-===================================================== */
 
 /**
- * Admin: Create a new group/channel
+ * deleteMessage — Soft-delete by the original sender.
+ */
+export const deleteMessage = async (req: AuthRequest, res: Response) => {
+  try {
+    const msg = await Message.findOne({
+      _id: req.params.messageId,
+      sender: req.user!.id,
+    });
+
+    if (!msg) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found or access denied",
+      });
+    }
+
+    msg.isDeleted = true;
+    await msg.save();
+
+    getIO().emit("message:updated", { _id: msg._id, isDeleted: true });
+    return res.status(200).json({ success: true, message: "Message deleted" });
+  } catch {
+    return res.status(500).json({ success: false, message: "Delete failed" });
+  }
+};
+
+/**
+ * adminPermanentDelete — Hard-delete by admin (audit/purge use).
+ */
+export const adminPermanentDelete = async (req: AuthRequest, res: Response) => {
+  try {
+    const { messageId } = req.params;
+    const deleted = await Message.findByIdAndDelete(messageId);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found",
+      });
+    }
+
+    getIO().emit("message:deleted", { _id: messageId });
+    return res.status(200).json({
+      success: true,
+      message: "Message permanently purged",
+    });
+  } catch {
+    return res.status(500).json({ success: false, message: "Purge failed" });
+  }
+};
+
+/**
+ * adminGetGroups — Fetch all active groups for the Registry.
+ */
+export const adminGetGroups = async (req: AuthRequest, res: Response) => {
+  try {
+    const groups = await Group.find({ isActive: true })
+      .populate("members", "name email role")
+      .populate("createdBy", "name")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: groups });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to fetch groups" });
+  }
+};
+
+/**
+ * adminCreateGroup — Create a new judicial/administrative group.
  */
 export const adminCreateGroup = async (req: AuthRequest, res: Response) => {
   try {
-    const adminId = req.user!.id;
-    const adminRole = req.user!.role;
     const { name, description, members } = req.body;
-
-    if (adminRole !== "admin") {
-      return res.status(403).json({ message: "Access denied. Admins only." });
-    }
-    
-    if (!name) {
-      return res.status(400).json({ message: "Group name is required" });
-    }
-
-    const memberList = Array.isArray(members) ? members : [];
-    if (!memberList.includes(adminId)) memberList.push(adminId);
 
     const newGroup = await Group.create({
       name,
       description,
-      createdBy: adminId,
-      members: memberList,
-      isActive: true,
+      members: members || [],
+      createdBy: req.user!.id,
     });
 
-    return res.status(201).json(newGroup);
-  } catch (err) {
-    return res.status(500).json({ message: "Failed to create group" });
+    const populated = await Group.findById(newGroup._id).populate("members", "name email role");
+
+    return res.status(201).json({ success: true, data: populated });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, message: err.message || "Group creation failed" });
   }
 };
 
 /**
- * Admin: Update group details (name, description, etc.)
+ * adminUpdateGroup — Edit group details (e.g., name or description).
  */
 export const adminUpdateGroup = async (req: AuthRequest, res: Response) => {
   try {
     const { groupId } = req.params;
+    const updatedGroup = await Group.findByIdAndUpdate(groupId, req.body, { new: true });
     
-    const group = await Group.findByIdAndUpdate(
-      groupId, 
-      req.body, 
-      { returnDocument: "after" }
-    );
+    if (!updatedGroup) return res.status(404).json({ success: false, message: "Group not found" });
 
-    if (!group) return res.status(404).json({ message: "Group not found" });
-    
-    return res.status(200).json(group);
+    return res.status(200).json({ success: true, data: updatedGroup });
   } catch (err) {
-    return res.status(500).json({ message: "Failed to update group" });
+    return res.status(500).json({ success: false, message: "Update failed" });
   }
 };
 
 /**
- * Admin: Add multiple members to a group
+ * adminAddMembers — Add specific Judges or DRs to a group.
  */
 export const adminAddMembers = async (req: AuthRequest, res: Response) => {
   try {
     const { groupId } = req.params;
-    const { userIds } = req.body;
-
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({ message: "userIds array is required" });
-    }
+    const { userIds } = req.body; // Array of IDs
 
     const group = await Group.findByIdAndUpdate(
       groupId,
       { $addToSet: { members: { $each: userIds } } },
-      { returnDocument: "after" }
-    ).populate("members", "name email role");
+      { new: true }
+    ).populate("members", "name role");
 
-    if (!group) return res.status(404).json({ message: "Group not found" });
-
-    return res.status(200).json({ message: "Members successfully added", group });
+    return res.status(200).json({ success: true, data: group });
   } catch (err) {
-    return res.status(500).json({ message: "Admin: Failed to add members" });
+    return res.status(500).json({ success: false, message: "Failed to add members" });
   }
 };
 
 /**
- * Admin: Remove a specific member from a group
+ * adminRemoveMember — Revoke group access for a specific user.
  */
 export const adminRemoveMember = async (req: AuthRequest, res: Response) => {
   try {
@@ -455,78 +624,108 @@ export const adminRemoveMember = async (req: AuthRequest, res: Response) => {
     const group = await Group.findByIdAndUpdate(
       groupId,
       { $pull: { members: userId } },
-      { returnDocument: "after" }
+      { new: true }
     );
 
-    if (!group) return res.status(404).json({ message: "Group not found" });
-
-    return res.status(200).json({ message: "Member removed from group", group });
+    return res.status(200).json({ success: true, message: "Member removed from group" });
   } catch (err) {
-    return res.status(500).json({ message: "Admin: Failed to remove member" });
+    return res.status(500).json({ success: false, message: "Removal failed" });
+  }
+};
+
+/* ============================================================
+    HISTORY & AUDIT LOGS
+============================================================ */
+
+/**
+ * adminGetAllMessages — Master log for the Registry Audit.
+ * Allows filtering by date, sender, or broadcast status.
+ */
+export const adminGetAllMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 50, isBroadcast } = req.query;
+    const query: any = {};
+
+    if (isBroadcast !== undefined) query.isBroadcast = isBroadcast === "true";
+
+    const messages = await Message.find(query)
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .sort({ createdAt: -1 })
+      .populate("sender", "name role")
+      .populate("receiver", "name role")
+      .lean();
+
+    const total = await Message.countDocuments(query);
+
+    return res.status(200).json({
+      success: true,
+      data: messages,
+      total,
+      pages: Math.ceil(total / Number(limit)),
+      currentPage: Number(page)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Audit log retrieval failed" });
   }
 };
 
 /**
- * Admin: Get all active groups with member details
+ * adminGetChatMessages — Detailed thread history for the Admin Dashboard.
  */
-export const adminGetGroups = async (req: AuthRequest, res: Response) => {
+export const adminGetChatMessages = async (req: AuthRequest, res: Response) => {
   try {
-    const groups = await Group.find({ isActive: true })
-      .populate("members", "name email role")
-      .sort({ createdAt: -1 });
-      
-    return res.status(200).json(groups);
-  } catch (err) {
-    return res.status(500).json({ message: "Failed to fetch groups" });
-  }
-};
-
-export const adminGetAllMessages = async (req: AuthRequest, res: Response) => {
-  try {
-    const { isBroadcast, receiverId, page = 1, limit = 100 } = req.query;
-    const filter: any = { isDeleted: false };
+    const { receiverId, groupId, isBroadcast } = req.query;
+    const query: any = { isDeleted: false };
 
     if (isBroadcast === "true") {
-      filter.isBroadcast = true;
+      query.isBroadcast = true;
+    } else if (groupId) {
+      query.group = groupId;
     } else if (receiverId) {
-      filter.isBroadcast = false;
-      filter.$or = [
+      query.$or = [
         { sender: req.user!.id, receiver: receiverId },
-        { sender: receiverId, receiver: req.user!.id },
+        { sender: receiverId, receiver: req.user!.id }
       ];
     }
 
-    const messages = await Message.find(filter)
-      .populate("sender receiver", "name role")
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
+    const messages = await Message.find(query)
+      .sort({ createdAt: 1 })
+      .populate("sender", "name role")
       .lean();
 
-    const total = await Message.countDocuments(filter);
-    return res.status(200).json({
-      messages,
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
-    });
+    return res.status(200).json({ success: true, data: messages });
   } catch (err) {
-    return res.status(500).json({ message: "Admin: Failed to fetch messages" });
+    return res.status(500).json({ success: false, message: "Failed to fetch thread history" });
   }
 };
 
-export const adminPermanentDelete = async (req: AuthRequest, res: Response) => {
+/**
+ * adminGetStats — High-level metrics for the Principal Registry Dashboard.
+ */
+export const adminGetStats = async (req: AuthRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
-    // Hard delete from database
-    const deletedMessage = await Message.findByIdAndDelete(messageId);
-    
-    if (!deletedMessage) {
-      return res.status(404).json({ message: "Message not found" });
-    }
+    const [totalMsgs, broadcastCount, activeUsers] = await Promise.all([
+      Message.countDocuments(),
+      Message.countDocuments({ isBroadcast: true }),
+      User.countDocuments({ isActive: true })
+    ]);
 
-    return res.status(200).json({ message: "Message permanently purged from records" });
+    // Role-based breakdown
+    const roleStats = await User.aggregate([
+      { $group: { _id: "$role", count: { $sum: 1 } } }
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalMessages: totalMsgs,
+        broadcasts: broadcastCount,
+        users: activeUsers,
+        breakdown: roleStats
+      }
+    });
   } catch (err) {
-    return res.status(500).json({ message: "Admin: Failed to purge message" });
+    return res.status(500).json({ success: false, message: "Failed to compile statistics" });
   }
 };

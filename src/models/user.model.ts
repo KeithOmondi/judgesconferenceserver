@@ -1,11 +1,11 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import bcrypt from "bcryptjs";
-import { v4 as uuidv4 } from "uuid"; // Recommended for generating unique session IDs
+import { v4 as uuidv4 } from "uuid";
 
 /* ================================
   1️⃣ Types & Interfaces
 ================================ */
-export type UserRole = "admin" | "judge" | "guest";
+export type UserRole = "admin" | "judge" | "dr";
 
 interface IWebPushSubscription {
   endpoint: string;
@@ -25,13 +25,13 @@ export interface IUser extends Document {
   cohort?: number;
   isVerified: boolean;
   isActive: boolean;
-  
-  // SESSION & SECURITY UPDATES
+
+  // SESSION & SECURITY
   fcmTokens: string[];
   webPushSubscriptions: IWebPushSubscription[];
-  currentSessionId?: string; // 👈 Tracks the one "allowed" session
-  lastLogin?: Date;          // 👈 Track user's last activity
-  
+  currentSessionId?: string;
+  lastLogin?: Date;
+
   passwordChangedAt?: Date;
   loginAttempts: number;
   lockUntil?: Date;
@@ -40,7 +40,7 @@ export interface IUser extends Document {
 
   comparePassword(candidatePassword: string): Promise<boolean>;
   isLocked(): boolean;
-  generateNewSession(): Promise<string>; // 👈 Helper to rotate session
+  generateNewSession(): Promise<string>;
 }
 
 interface IUserModel extends Model<IUser> {
@@ -54,15 +54,28 @@ const userSchema = new Schema<IUser>(
   {
     pj: { type: String, required: true, unique: true, trim: true, index: true },
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 100 },
-    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     password: { type: String, required: true, minlength: 5, select: false },
-    role: { type: String, enum: ["admin", "judge", "guest"], default: "guest", index: true },
+
+    /**
+     * Roles:
+     *  - "admin"  → Full system access; manages users, settings, and all data
+     *  - "judge"  → Can score/review assigned cases; limited write access
+     *  - "dr"     → Deputy Registrar; manages case records and submissions
+     */
+    role: {
+      type: String,
+      enum: ["admin", "judge", "dr"],
+      default: "dr",
+      index: true,
+    },
+
     cohort: { type: Number, index: true, min: 2000, max: 2100 },
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true, index: true },
 
-    // Tracking logins and session restriction
-    currentSessionId: { type: String, default: null }, 
+    // Session restriction — only one active session per user
+    currentSessionId: { type: String, default: null },
     lastLogin: { type: Date },
 
     fcmTokens: { type: [String], default: [], index: true },
@@ -87,7 +100,6 @@ const userSchema = new Schema<IUser>(
 /* ================================
   3️⃣ Middleware (Password Hashing)
 ================================ */
-// Note: next() is omitted as modern Mongoose supports returning Promises
 userSchema.pre<IUser>("save", async function () {
   if (!this.isModified("password")) return;
 
@@ -102,7 +114,9 @@ userSchema.pre<IUser>("save", async function () {
 /* ================================
   4️⃣ Instance Methods
 ================================ */
-userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+): Promise<boolean> {
   const userPassword = (this as any).password;
   if (!userPassword) {
     throw new Error("Password not selected. Use .select('+password') in query.");
@@ -115,14 +129,14 @@ userSchema.methods.isLocked = function (): boolean {
 };
 
 /**
- * Call this during the login controller. 
- * It invalidates any previous session by generating a new ID.
+ * Invalidates any previous session by rotating the session ID.
+ * Call this inside your login controller after credential verification.
  */
 userSchema.methods.generateNewSession = async function (): Promise<string> {
   const newSessionId = uuidv4();
   this.currentSessionId = newSessionId;
   this.lastLogin = new Date();
-  this.loginAttempts = 0; // Reset attempts on successful login
+  this.loginAttempts = 0;
   this.lockUntil = undefined;
   await this.save();
   return newSessionId;
@@ -138,7 +152,7 @@ userSchema.statics.failedLogin = async function (email: string) {
   user.loginAttempts += 1;
 
   if (user.loginAttempts >= 5) {
-    // Lock account for 30 minutes
+    // Lock account for 30 minutes after 5 failed attempts
     user.lockUntil = new Date(Date.now() + 30 * 60 * 1000);
   }
 

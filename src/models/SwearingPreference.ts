@@ -1,77 +1,117 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
-export interface ICourtInformation extends Document {
-  judges: {
-    _id: mongoose.Types.ObjectId;
-    name: string;
-    title: string;
-    description: string;
-    imageUrl: string;
-    imagePublicId: string;
-  }[];
-  presentations: {
-    _id: mongoose.Types.ObjectId;
-    title: string;
-    fileUrl: string;
-    fileType: string; 
-    publicId: string;
-    resourceType: string; // Store: 'video', 'image', or 'raw'
-    uploadedAt: Date;
-  }[];
-  program: {
-    items: {
-      time?: string;
-      event?: string;
-      location?: string;
-      iconType?: string;
-    }[];
-    scheduledRelease: Date | null; 
-    programFileUrl?: string;
-    programFilePublicId?: string;
-    programFileResourceType?: string;
-  };
-  updatedBy: mongoose.Types.ObjectId;
+/* ================================
+    Constants & Types
+================================ */
+export const USER_ROLES = ["judge", "dr", "admin", "all"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/* ================================
+    Sub-document Interfaces
+================================ */
+export interface IJudgeEntry {
+  _id: Types.ObjectId;
+  name: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  imagePublicId: string;
+  targetAudience: UserRole[];
 }
 
-const CourtInformationSchema: Schema = new Schema(
+export interface IPresentationEntry {
+  _id: Types.ObjectId;
+  title: string;
+  fileUrl: string;
+  fileType: string;
+  publicId: string;
+  resourceType: string;
+  uploadedAt: Date;
+  targetAudience: UserRole[];
+}
+
+/* ================================
+    Main Document Interface
+=============================== */
+export interface ICourtInformation extends Document {
+  judges: IJudgeEntry[];
+  presentations: IPresentationEntry[];
+  updatedBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/* ================================
+    Sub-schemas
+================================ */
+const JudgeSchema = new Schema<IJudgeEntry>(
   {
-    judges: [
-      {
-        name: { type: String, required: true },
-        title: { type: String, required: true },
-        description: { type: String, required: true },
-        imageUrl: { type: String, required: true },
-        imagePublicId: { type: String },
-      },
-    ],
-    presentations: [
-      {
-        title: { type: String, required: true },
-        fileUrl: { type: String, required: true },
-        fileType: { type: String },
-        publicId: { type: String },
-        resourceType: { type: String },
-        uploadedAt: { type: Date, default: Date.now },
-      },
-    ],
-    program: {
-      items: [
-        {
-          time: { type: String },
-          event: { type: String },
-          location: { type: String },
-          iconType: { type: String, default: "clock" },
-        },
-      ],
-      scheduledRelease: { type: Date, default: null },
-      programFileUrl: { type: String },
-      programFilePublicId: { type: String },
-      programFileResourceType: { type: String },
+    name: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true },
+    imageUrl: { type: String, required: true },
+    imagePublicId: { type: String, default: null },
+    targetAudience: {
+      type: [String],
+      enum: USER_ROLES,
+      default: [],              // ← was ["all"]; empty = visible to all via null-safe filter
     },
-    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
-  { timestamps: true }
+  { _id: true }
 );
 
-export default mongoose.models.CourtInformation || 
+const PresentationSchema = new Schema<IPresentationEntry>(
+  {
+    title: { type: String, required: true, trim: true },
+    fileUrl: { type: String, required: true },
+    fileType: { type: String, default: null },
+    publicId: { type: String, default: null },
+    resourceType: { type: String, default: null },
+    uploadedAt: { type: Date, default: Date.now },
+    targetAudience: {
+      type: [String],
+      enum: USER_ROLES,
+      default: [],              // ← was ["all"]; same reasoning
+    },
+  },
+  { _id: true }
+);
+
+/* ================================
+    Main Schema
+================================ */
+const CourtInformationSchema = new Schema<ICourtInformation>(
+  {
+    judges: { 
+      type: [JudgeSchema], 
+      default: [] 
+    },
+    presentations: { 
+      type: [PresentationSchema], 
+      default: [] 
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
+);
+
+/* ================================
+    Indexes
+================================ */
+CourtInformationSchema.index({ "judges.targetAudience": 1 });
+CourtInformationSchema.index({ "presentations.targetAudience": 1 });
+
+/* ================================
+    Export
+================================ */
+export const CourtInformation =
+  mongoose.models.CourtInformation ||
   mongoose.model<ICourtInformation>("CourtInformation", CourtInformationSchema);

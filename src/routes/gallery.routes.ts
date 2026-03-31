@@ -4,31 +4,31 @@ import {
   getGallery,
   getGalleryAdmin,
   deleteMedia,
-  trackGalleryDownload // ← Added
+  trackGalleryDownload,
+  bulkUpdateAudience // Import the new controller
 } from "../controllers/gallery.controller";
 import { authorize, protect } from "../middlewares/authMiddleware";
 import { upload } from "../middlewares/upload";
 
 const router = Router();
 
-// -------------------- GALLERY FETCH --------------------
-// Protected access for all authorized users (Judges, Admins, etc.)
+/* =====================================================
+    PUBLIC / PROTECTED FETCHING
+===================================================== */
+
 router.get("/get", protect, getGallery);
 
-// -------------------- TRACKING --------------------
-// Public/Protected tracking route that increments count and redirects
-router.get("/download/:id", protect, trackGalleryDownload); // ← Added
+router.get("/download/:id", protect, trackGalleryDownload);
 
-// -------------------- ADMIN MANAGEMENT --------------------
+/* =====================================================
+    ADMIN MANAGEMENT (Protected & Authorized)
+===================================================== */
 
-// Admin specific fetch (includes uploader email/details)
+// Detailed fetch for admin dashboard
 router.get("/admin", protect, authorize("admin"), getGalleryAdmin);
 
 /**
- * Upload Multiple Media
- * Field name: "files" 
- * Limit: 40 files per request
- * Validates: Admin role via authorize("admin")
+ * Bulk Upload Media
  */
 router.post(
   "/upload", 
@@ -38,7 +38,18 @@ router.post(
   uploadMedia
 );
 
-// Delete specific media asset by ID
+/**
+ * Bulk Update Audience (New)
+ * Allows admin to select multiple items and change their visibility/role tag
+ */
+router.patch(
+  "/bulk-audience", 
+  protect, 
+  authorize("admin"), 
+  bulkUpdateAudience
+);
+
+// Delete asset
 router.delete("/:id", protect, authorize("admin"), deleteMedia);
 
 export default router;

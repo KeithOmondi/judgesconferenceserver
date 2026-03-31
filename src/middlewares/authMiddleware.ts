@@ -1,42 +1,29 @@
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { env } from "../config/env";
-import { User } from "../models/user.model";
-
-export type UserRole = "admin" | "judge" | "guest";
+import { User, UserRole } from "../models/user.model";
 
 /* ================================
-   1️⃣ Token Payload Interface
+    1️⃣ Token Payload Interface
 ================================ */
 interface TokenPayload extends JwtPayload {
   id: string;
-  role?: UserRole;
-  sessionId?: string; // 👈 NEW: Added to track unique session
+  role: UserRole;
+  sessionId: string; 
+  iat: number; 
   resetOnly?: boolean;
 }
 
 /* ================================
-   2️⃣ Extended Request Interface
-================================ */
-export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role?: UserRole;
-    resetOnly?: boolean;
-    sessionId?: string; // 👈 NEW
-  };
-}
-
-/* ================================
-   3️⃣ Protect (Now with Session Validation)
+    2️⃣ Protect (Standard Request)
 ================================ */
 export const protect = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
+  req: Request, 
+  res: Response, 
+  next: NextFunction
 ) => {
   try {
-    // 👇 check Authorization header first, then cookie (fixes Safari ITP)
+    // 1) Extract Token
     const token =
       req.headers.authorization?.startsWith("Bearer ")
         ? req.headers.authorization.split(" ")[1]
@@ -49,6 +36,7 @@ export const protect = async (
       });
     }
 
+    // 2) Verify Token
     const decoded = jwt.verify(
       token,
       env.JWT_SECRET as string
@@ -61,7 +49,8 @@ export const protect = async (
       });
     }
 
-    const user = await User.findById(decoded.id).select("+currentSessionId +isActive");
+    // 3) Check User & Status
+    const user = await User.findById(decoded.id).select("+currentSessionId +isActive +passwordChangedAt");
 
     if (!user || !user.isActive) {
       return res.status(401).json({
@@ -70,13 +59,26 @@ export const protect = async (
       });
     }
 
+    // 4) Session Validation
     if (user.currentSessionId && decoded.sessionId !== user.currentSessionId) {
       return res.status(401).json({
         success: false,
-        message: "Logged out: Another device has logged into this account",
+        message: "Logged out: Your session has been invalidated by a newer login",
       });
     }
 
+    // 5) Password Freshness Check
+    if (user.passwordChangedAt) {
+      const changedTimestamp = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < changedTimestamp) {
+        return res.status(401).json({
+          success: false,
+          message: "Password recently changed. Please log in again.",
+        });
+      }
+    }
+
+    // 6) Grant Access (req.user is recognized thanks to global augmentation)
     req.user = {
       id: decoded.id,
       role: decoded.role,
@@ -94,13 +96,12 @@ export const protect = async (
 };
 
 /* ================================
-   4️⃣ Protect Reset-Only Routes
-================================ */
-// (Remains synchronous as reset tokens usually skip the session-lock logic)
+    3️⃣ Protect Reset-Only Routes
+=============================== */
 export const protectResetOnly = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   try {
     const authHeader = req.headers.authorization;
@@ -115,7 +116,11 @@ export const protectResetOnly = (
       return res.status(403).json({ success: false, message: "Invalid reset session" });
     }
 
-    req.user = { id: decoded.id, resetOnly: true };
+    req.user = { 
+        id: decoded.id, 
+        role: decoded.role,
+        resetOnly: true 
+    };
     next();
   } catch (error) {
     return res.status(403).json({ success: false, message: "Reset session expired" });
@@ -123,14 +128,15 @@ export const protectResetOnly = (
 };
 
 /* ================================
-   5️⃣ Role Authorization
+    4️⃣ Role Authorization
 ================================ */
 export const authorize = (...roles: UserRole[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user || !req.user.role || !roles.includes(req.user.role)) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Check if user exists and if their role is in the allowed list
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `Role (${req.user?.role}) is not authorized`,
+        message: `Your role (${req.user?.role}) does not have permission`,
       });
     }
     next();

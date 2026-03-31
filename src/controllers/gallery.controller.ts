@@ -1,16 +1,25 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import { Gallery } from "../models/gallery.model";
-import { AuthRequest } from "../middlewares/authMiddleware";
 import cloudinary, { uploadToCloudinary } from "../config/cloudinary";
 
-// -------------------- Upload multiple media - admin only --------------------
-export const uploadMedia = async (req: AuthRequest, res: Response) => {
-  try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ message: "Only admins can upload media" });
-    }
+// -------------------- Build Role Filter Helper --------------------
+const getGalleryFilter = (req: Request) => {
+  const role = req.user?.role || "all";
+  if (role === "admin" || role === "all") return {};
 
-    const { description } = req.body;
+  return {
+    $or: [
+      { targetAudience: { $in: [role, "all"] } },
+      { targetAudience: { $exists: false } },
+      { targetAudience: null }
+    ]
+  };
+};
+
+// -------------------- Upload multiple media - admin only --------------------
+export const uploadMedia = async (req: Request, res: Response) => {
+  try {
+    const { description, targetAudience } = req.body;
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {
@@ -36,8 +45,9 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
         downloadUrl,
         publicId: result.public_id,
         resourceType: result.resource_type,
+        targetAudience: targetAudience || "all", // New: Consistent role-based tagging
         uploadedBy: req.user!.id,
-        downloadCount: 0, // Initialize tracker
+        downloadCount: 0,
       });
     });
 
@@ -52,39 +62,34 @@ export const uploadMedia = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// -------------------- NEW: Gallery Download Tracker --------------------
-export const trackGalleryDownload = async (req: AuthRequest, res: Response) => {
+// -------------------- Gallery Download Tracker --------------------
+export const trackGalleryDownload = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     const media = await Gallery.findByIdAndUpdate(
       id,
       { $inc: { downloadCount: 1 } },
-      { returnDocument: 'after' } // Fixes the Mongoose "new" deprecation warning
+      { returnDocument: 'after' }
     );
 
     if (!media) {
       return res.status(404).json({ message: "Media not found" });
     }
 
-    // FALLBACK: If downloadUrl is missing, use the standard url
     const targetUrl = media.downloadUrl || media.url;
-
-    if (!targetUrl) {
-      return res.status(400).json({ message: "No valid URL found for this asset" });
-    }
-
     return res.redirect(targetUrl);
   } catch (err: any) {
-    console.error("Download Tracking Error:", err);
     return res.status(500).json({ message: "Tracking failed" });
   }
 };
 
-// -------------------- Fetch gallery - all roles --------------------
-export const getGallery = async (req: AuthRequest, res: Response) => {
+// -------------------- Fetch gallery - Role Aware --------------------
+export const getGallery = async (req: Request, res: Response) => {
   try {
-    const media = await Gallery.find()
+    const filter = getGalleryFilter(req);
+    
+    const media = await Gallery.find(filter)
       .sort({ createdAt: -1 })
       .populate("uploadedBy", "name role");
 
@@ -94,13 +99,9 @@ export const getGallery = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// -------------------- Admin fetch gallery - admin only --------------------
-export const getGalleryAdmin = async (req: AuthRequest, res: Response) => {
+// -------------------- Admin fetch gallery (Full view) --------------------
+export const getGalleryAdmin = async (req: Request, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ message: "Only admins can access this endpoint" });
-    }
-
     const media = await Gallery.find()
       .sort({ createdAt: -1 })
       .populate("uploadedBy", "name email role");
@@ -112,12 +113,8 @@ export const getGalleryAdmin = async (req: AuthRequest, res: Response) => {
 };
 
 // -------------------- Delete media - admin only --------------------
-export const deleteMedia = async (req: AuthRequest, res: Response) => {
+export const deleteMedia = async (req: Request, res: Response) => {
   try {
-    if (req.user!.role !== "admin") {
-      return res.status(403).json({ message: "Only admins can delete media" });
-    }
-
     const { id } = req.params;
     const media = await Gallery.findById(id);
 
@@ -127,16 +124,39 @@ export const deleteMedia = async (req: AuthRequest, res: Response) => {
       resource_type: media.resourceType,
     });
 
-    if (cloudinaryResult.result !== "ok") {
-      console.warn(
-        `Cloudinary deletion warning for ${media.publicId}:`,
-        cloudinaryResult.result
-      );
-    }
-
     await media.deleteOne();
 
     return res.status(200).json({ message: "Media deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// -------------------- Bulk Update Audience - admin only --------------------
+export const bulkUpdateAudience = async (req: Request, res: Response) => {
+  try {
+    const { ids, targetAudience } = req.body;
+
+    // Validation
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Please provide an array of media IDs." });
+    }
+
+    if (!targetAudience) {
+      return res.status(400).json({ message: "Target audience is required." });
+    }
+
+    // Perform bulk update
+    const result = await Gallery.updateMany(
+      { _id: { $in: ids } }, // Filter: match all IDs in the provided array
+      { $set: { targetAudience } } // Action: set the new audience
+    );
+
+    return res.status(200).json({
+      message: `Successfully updated audience for ${result.modifiedCount} items.`,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
   }

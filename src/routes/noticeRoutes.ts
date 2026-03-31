@@ -6,8 +6,8 @@ import {
   downloadNotice,
   updateNotice,
   deleteNotice,
-  getPublicNotices,
-  getPublicNoticeById
+  getPublicNotices,    // Now points to role-aware getNotices
+  getPublicNoticeById  // Now points to role-aware getNoticeById
 } from "../controllers/noticeController";
 import { protect, authorize } from "../middlewares/authMiddleware";
 import { upload } from "../middlewares/upload";
@@ -16,47 +16,33 @@ const router = express.Router();
 
 /* ===============================
    PUBLIC ROUTES (Truly Public)
+   Note: req.user is undefined here, so controller 
+   defaults to showing only "ALL" audience.
 ================================ */
-
-// Public listings (Filtered by expiryDate and targetAudience)
 router.get("/public", getPublicNotices);
-
-// Public single view (Increments nested stats.views)
 router.get("/public/:id", getPublicNoticeById);
 
 
 /* ===============================
    INTERNAL ROUTES (Judges/Staff)
 ================================ */
-
-// Authenticated view (includes creator metadata)
+// Authenticated: Filtered by DR vs JUDGE automatically
 router.get("/", protect, getNotices);
-
-// Specific detail view for logged-in users
 router.get("/:id", protect, getNoticeById);
-
-// Track downloads (Increments nested stats.downloads)
 router.get("/download/:id", protect, downloadNotice);
 
 
 /* ===============================
    ADMIN ROUTES (Management)
 ================================ */
-
-/**
- * CREATE: Supports multiple attachments
- * Use upload.array("files", 5) if your frontend sends multiple files
- * Use upload.single("file") if you only ever send one
- */
 router.post(
   "/create",
   protect,
   authorize("admin"),
-  upload.array("files", 5), // Matches schema change to attachments[]
+  upload.array("files", 5), 
   createNotice,
 );
 
-// UPDATE: Supports metadata changes and file appending
 router.put(
   "/update/:id",
   protect,
@@ -65,7 +51,6 @@ router.put(
   updateNotice,
 );
 
-// DELETE: Full removal from DB
 router.delete(
   "/delete/:id", 
   protect, 
