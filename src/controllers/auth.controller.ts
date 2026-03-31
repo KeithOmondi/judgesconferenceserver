@@ -6,7 +6,6 @@ import { env } from "../config/env";
 import { hashToken } from "../utils/hashToken";
 import {
   deleteRefreshToken,
-  deleteUserTokens,
   findRefreshToken,
 } from "../models/refreshToken.store";
 
