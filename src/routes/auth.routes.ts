@@ -2,7 +2,6 @@ import { Router } from "express";
 import {
   login,
   logout,
-  logoutAll,
   refreshHandler,
   setupPassword, // Import the new controller
 } from "../controllers/auth.controller";
@@ -32,8 +31,5 @@ router.post("/refresh", refreshHandler);
 
 // Logout from the current device only
 router.post("/logout", protect, logout);
-
-// Logout from all devices (Global Reset)
-router.post("/logout-all", protect, logoutAll);
 
 export default router;

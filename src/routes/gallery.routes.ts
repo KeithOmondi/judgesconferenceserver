@@ -16,7 +16,7 @@ const router = Router();
     PUBLIC / PROTECTED FETCHING
 ===================================================== */
 
-router.get("/get", protect, getGallery);
+router.get("/get", protect, authorize("admin", "dr", "judge"), getGallery);
 
 router.get("/download/:id", protect, trackGalleryDownload);
 
