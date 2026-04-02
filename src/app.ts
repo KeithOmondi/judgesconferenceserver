@@ -71,6 +71,15 @@ app.get("/health", (req: Request, res: Response) => {
   });
 });
 
+
+app.get("/debug-cors", (req: Request, res: Response) => {
+  res.json({
+    FRONTEND_URL: env.FRONTEND_URL,
+    allowedOrigins,
+    NODE_ENV: env.NODE_ENV,
+  });
+});
+
 /**
  * 4. API ROUTES
  */
