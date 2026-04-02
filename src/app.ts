@@ -33,6 +33,7 @@ if (env.NODE_ENV === "production") {
  * Optimized for cross-origin cookie support.
  */
 const allowedOrigins = [env.FRONTEND_URL];
+console.log("✅ Allowed Origins:", allowedOrigins);
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: any) => {
